@@ -17,12 +17,12 @@ export const Hero = () => (
     <div className="absolute inset-0 bg-cocoa/25" aria-hidden />
 
     <div className="relative z-10 flex flex-col items-center px-4 pt-24 text-center md:pt-40">
-      <h1 className="max-w-5xl font-serif text-[clamp(2.25rem,5vw,5rem)] leading-tight font-normal tracking-tight text-balance text-pearl">
+      <h1 className="max-w-5xl font-serif text-[clamp(2.25rem,5vw,5rem)] leading-tight font-normal tracking-tight text-balance text-pearl italic">
         Des soins qui révèlent, des pas qui avancent
       </h1>
       <Link
         href="/reserver"
-        className="mt-20 inline-flex h-18 items-center justify-center rounded-full bg-blush px-12 font-sans text-lg text-cocoa transition-colors hover:bg-pearl md:mt-24 md:h-20"
+        className="mt-20 inline-flex h-18 items-center justify-center rounded-full bg-blush px-12 font-sans text-lg text-cocoa transition-colors hover:bg-sand md:mt-24 md:h-20"
       >
         prendre rendez-vous
       </Link>

@@ -46,7 +46,7 @@ export const MobileNav = () => {
         <Link
           href="/reserver"
           onClick={() => setOpen(false)}
-          className="mt-10 inline-flex h-14 items-center justify-center rounded-full bg-blush px-8 font-sans text-base text-cocoa"
+          className="mt-10 inline-flex h-14 items-center justify-center rounded-full bg-blush px-8 font-sans text-base text-cocoa transition-colors hover:bg-sand"
         >
           Prendre rendez-vous
         </Link>
