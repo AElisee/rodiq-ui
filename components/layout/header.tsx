@@ -21,6 +21,7 @@ export const Header = () => {
 
   return (
     <header
+      style={{ viewTransitionName: "site-header" }}
       className={cn(
         "fixed inset-x-0 top-0 z-20 font-serif transition-[background-color,color,box-shadow] duration-300",
         scrolled ? "bg-pearl text-cocoa shadow-sm" : "bg-transparent text-pearl"

@@ -33,7 +33,7 @@ export const MobileNav = () => {
           Navigation principale du site Rodiq
         </SheetDescription>
         <nav className="flex flex-col gap-6">
-          {[{ label: "Accueil", href: "/" }, ...mainNav].map((link) => (
+          {mainNav.map((link) => (
             <Link
               key={link.href}
               href={link.href}

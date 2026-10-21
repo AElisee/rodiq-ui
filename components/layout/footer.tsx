@@ -10,9 +10,9 @@ const contact = {
 };
 
 const hours = [
-  { days: "Mardi – Vendredi", time: "9h – 19h" },
+  { days: "Lundi – Vendredi", time: "9h – 19h" },
   { days: "Samedi", time: "9h – 17h" },
-  { days: "Dimanche – Lundi", time: "Fermé" },
+  { days: "Dimanche", time: "Fermé" },
 ];
 
 const socials = [

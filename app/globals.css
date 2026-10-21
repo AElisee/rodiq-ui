@@ -115,3 +115,67 @@ body {
     font-family: var(--font-sans);
   }
 }
+
+/* Navigation fluide : défilement doux pour les ancres */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Transitions de page (View Transitions) : fondu + léger glissement vertical */
+::view-transition {
+  pointer-events: none;
+}
+
+::view-transition-old(.page-fade) {
+  animation: 180ms ease-in both page-fade reverse;
+}
+
+::view-transition-new(.page-fade) {
+  animation:
+    320ms ease-out 120ms both page-fade,
+    420ms cubic-bezier(0.22, 1, 0.36, 1) 120ms both page-rise;
+}
+
+/* Le header reste fixe pendant la transition */
+::view-transition-group(site-header) {
+  animation: none;
+  z-index: 100;
+}
+::view-transition-old(site-header) {
+  display: none;
+}
+::view-transition-new(site-header) {
+  animation: none;
+}
+
+@keyframes page-fade {
+  from {
+    opacity: 0;
+    filter: blur(2px);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+  }
+}
+
+@keyframes page-rise {
+  from {
+    transform: translateY(12px);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  ::view-transition-old(*),
+  ::view-transition-new(*),
+  ::view-transition-group(*) {
+    animation-duration: 0s !important;
+    animation-delay: 0s !important;
+  }
+}
