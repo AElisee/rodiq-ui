@@ -1,5 +1,7 @@
 import Image, { type StaticImageData } from "next/image";
 import Link from "next/link";
+import { Fragment } from "react";
+import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import feetImage from "@/public/images/prestation-feet.jpg";
 import handsImage from "@/public/images/prestation-hands.jpg";
@@ -49,40 +51,40 @@ export const Services = () => (
         Nos prestations
       </h2>
 
-      <div className="mt-16 flex flex-col gap-20 md:mt-20 lg:gap-28">
+      <div className="mt-16 flex flex-col gap-12 md:mt-20 md:gap-20 lg:gap-28">
         {categories.map(({ name, tagline, description, image, alt }, i) => (
-          <article
-            key={name}
-            className="grid items-center gap-10 lg:grid-cols-2 lg:gap-20"
-          >
-            <div
-              className={cn(
-                "relative aspect-[4/5] w-full overflow-hidden bg-sand lg:aspect-auto lg:h-[min(70svh,640px)]",
-                i % 2 === 1 && "lg:order-2"
-              )}
-            >
-              <Image
-                src={image}
-                alt={alt}
-                fill
-                placeholder="blur"
-                sizes="(min-width: 1024px) 50vw, 100vw"
-                className="object-cover"
-              />
-            </div>
+          <Fragment key={name}>
+            {i > 0 && <Separator className="bg-sand lg:hidden" />}
+            <article className="grid items-center gap-10 lg:grid-cols-2 lg:gap-20">
+              <div
+                className={cn(
+                  "relative aspect-[4/5] w-full overflow-hidden bg-sand lg:aspect-auto lg:h-[min(70svh,640px)]",
+                  i % 2 === 1 && "lg:order-2",
+                )}
+              >
+                <Image
+                  src={image}
+                  alt={alt}
+                  fill
+                  placeholder="blur"
+                  sizes="(min-width: 1024px) 50vw, 100vw"
+                  className="object-cover"
+                />
+              </div>
 
-            <div className="max-w-md lg:justify-self-center">
-              <h3 className="font-serif text-[clamp(1.75rem,2.8vw,2.75rem)] leading-tight font-normal text-cocoa">
-                {name}
-              </h3>
-              <p className="mt-3 font-serif text-[clamp(1.1rem,1.5vw,1.4rem)] text-taupe italic">
-                {tagline}
-              </p>
-              <p className="mt-8 font-serif text-[clamp(0.95rem,1.2vw,1.15rem)] leading-relaxed text-cocoa">
-                {description}
-              </p>
-            </div>
-          </article>
+              <div className="max-w-md lg:justify-self-center">
+                <h3 className="font-serif text-[clamp(1.75rem,2.8vw,2.75rem)] leading-tight font-normal text-cocoa">
+                  {name}
+                </h3>
+                <p className="mt-3 font-serif text-[clamp(1.1rem,1.5vw,1.4rem)] text-taupe italic">
+                  {tagline}
+                </p>
+                <p className="mt-8 font-serif text-[clamp(0.95rem,1.2vw,1.15rem)] leading-relaxed text-cocoa">
+                  {description}
+                </p>
+              </div>
+            </article>
+          </Fragment>
         ))}
       </div>
 

@@ -15,13 +15,13 @@ export const ShopTeaser = () => (
         className="object-cover"
       />
 
-      <div className="relative z-10 flex max-w-sm flex-col items-center rounded-[var(--radius)] bg-pearl px-8 py-8 text-center md:max-w-md md:px-12 md:py-10">
-        <p className="font-serif text-[clamp(1.4rem,2.2vw,2rem)] leading-snug text-balance text-cocoa">
+      <div className="relative z-10 flex max-w-sm flex-col items-center text-center md:max-w-md md:rounded-[var(--radius)] md:bg-pearl md:px-12 md:py-10">
+        <p className="hidden font-serif md:block text-[clamp(1.4rem,2.2vw,2rem)] leading-snug text-balance text-cocoa">
           Prolongez le soin chez vous
         </p>
         <Link
           href="/boutique"
-          className="mt-8 inline-flex h-16 items-center justify-center rounded-full bg-blush px-12 font-sans text-lg text-cocoa transition-colors hover:bg-sand"
+          className="inline-flex md:mt-8 h-16 items-center justify-center rounded-full bg-blush px-12 font-sans text-lg text-cocoa transition-colors hover:bg-sand"
         >
           découvrir la boutique
         </Link>

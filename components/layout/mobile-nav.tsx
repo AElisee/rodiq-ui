@@ -18,10 +18,11 @@ export const MobileNav = () => {
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger
         aria-label="Ouvrir le menu"
-        className="flex h-10 w-12 flex-col items-center justify-center gap-2.5"
+        className="flex h-10 w-10 flex-col items-center justify-center gap-2"
       >
-        <span className="h-px w-11 bg-current" />
-        <span className="h-px w-11 bg-current" />
+        <span className="h-px w-8 bg-current" />
+        <span className="h-px w-8 bg-current" />
+        <span className="h-px w-8 bg-current" />
       </SheetTrigger>
       <SheetContent
         side="right"
@@ -32,7 +33,7 @@ export const MobileNav = () => {
           Navigation principale du site Rodiq
         </SheetDescription>
         <nav className="flex flex-col gap-6">
-          {mainNav.map((link) => (
+          {[{ label: "Accueil", href: "/" }, ...mainNav].map((link) => (
             <Link
               key={link.href}
               href={link.href}
