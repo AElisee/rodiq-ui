@@ -27,7 +27,7 @@ export const ProductCard = ({ product }: { product: Product }) => {
     setAdded(true);
     toast.success(product.name, {
       description: "a été ajouté à votre panier",
-      action: { label: "voir le panier", onClick: () => router.push("/panier") },
+      action: { label: "Voir le panier", onClick: () => router.push("/panier") },
     });
   };
 
@@ -77,16 +77,16 @@ export const ProductCard = ({ product }: { product: Product }) => {
         className="mt-auto inline-flex h-11 w-full items-center justify-center gap-2 rounded-full bg-blush px-4 font-sans text-sm text-cocoa transition-colors hover:bg-sand disabled:cursor-not-allowed disabled:bg-sand disabled:text-taupe"
       >
         {product.soldOut ? (
-          "épuisé"
+          "Épuisé"
         ) : added ? (
           <>
             <Check className="size-4" strokeWidth={1.75} />
-            ajouté !
+            Ajouté !
           </>
         ) : (
           <>
             <Plus className="size-4" strokeWidth={1.75} />
-            ajouter au panier
+            Ajouter au panier
           </>
         )}
       </button>

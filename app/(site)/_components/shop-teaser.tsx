@@ -23,7 +23,7 @@ export const ShopTeaser = () => (
           href="/boutique"
           className="inline-flex md:mt-8 h-16 items-center justify-center rounded-full bg-blush px-12 font-sans text-lg text-cocoa transition-colors hover:bg-sand"
         >
-          découvrir la boutique
+          Découvrir la boutique
         </Link>
       </div>
     </div>

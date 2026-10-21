@@ -61,7 +61,7 @@ const HistoirePage = () => (
           href="/reserver"
           className="mt-8 inline-flex h-16 items-center justify-center self-center rounded-full bg-blush px-12 font-sans text-lg text-cocoa transition-colors hover:bg-sand"
         >
-          prendre rendez-vous
+          Prendre rendez-vous
         </Link>
       </div>
     </section>

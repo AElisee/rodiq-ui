@@ -25,7 +25,7 @@ export const ReserveButton = ({ id, name }: { id: string; name: string }) => {
       ) : (
         <Plus className="size-4" strokeWidth={1.75} />
       )}
-      {selected ? "ajoutée" : "réserver"}
+      {selected ? "Ajoutée" : "Réserver"}
     </button>
   );
 };

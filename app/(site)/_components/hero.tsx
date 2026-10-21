@@ -24,7 +24,7 @@ export const Hero = () => (
         href="/reserver"
         className="mt-20 inline-flex h-18 items-center justify-center rounded-full bg-blush px-12 font-sans text-lg text-cocoa transition-colors hover:bg-sand md:mt-24 md:h-20"
       >
-        prendre rendez-vous
+        Prendre rendez-vous
       </Link>
     </div>
   </section>

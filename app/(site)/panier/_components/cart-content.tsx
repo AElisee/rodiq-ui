@@ -39,7 +39,7 @@ export const CartContent = () => {
           href="/boutique"
           className="mt-10 inline-flex h-14 items-center justify-center rounded-full bg-blush px-10 font-sans text-base text-cocoa transition-colors hover:bg-sand"
         >
-          découvrir la boutique
+          Découvrir la boutique
         </Link>
       </div>
     );
@@ -60,7 +60,7 @@ export const CartContent = () => {
             onClick={clear}
             className="font-sans text-sm text-cocoa underline-offset-4 hover:underline"
           >
-            vider le panier
+            Vider le panier
           </button>
         </div>
 
@@ -152,7 +152,7 @@ export const CartContent = () => {
           href="/commande"
           className="mt-8 inline-flex h-14 w-full items-center justify-center rounded-full bg-blush px-8 font-sans text-base text-cocoa transition-colors hover:bg-sand"
         >
-          passer la commande
+          Passer la commande
         </Link>
         <Link
           href="/boutique"

@@ -62,13 +62,13 @@ export const BookingBar = () => {
               onClick={clear}
               className="font-sans text-sm underline-offset-4 hover:underline"
             >
-              tout retirer
+              Tout retirer
             </button>
             <Link
               href="/reserver"
               className="inline-flex h-14 flex-1 items-center justify-center rounded-full bg-blush px-8 font-sans text-base text-cocoa transition-colors hover:bg-sand md:flex-none"
             >
-              continuer la réservation
+              Continuer la réservation
             </Link>
           </div>
         </div>

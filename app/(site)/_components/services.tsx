@@ -93,7 +93,7 @@ export const Services = () => (
           href="/prestations"
           className="inline-flex h-16 items-center justify-center rounded-full bg-blush px-12 font-sans text-lg text-cocoa transition-colors hover:bg-sand md:h-18"
         >
-          menu prestations
+          Menu prestations
         </Link>
       </div>
     </div>

@@ -171,7 +171,7 @@ export const ShopCatalog = () => {
               onClick={resetFilters}
               className="mt-6 inline-flex h-11 items-center justify-center rounded-full bg-blush px-6 font-sans text-base text-cocoa transition-colors hover:bg-sand"
             >
-              réinitialiser les filtres
+              Réinitialiser les filtres
             </button>
           )}
         </div>
