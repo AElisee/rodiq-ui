@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Logo } from "@/components/brand/logo";
+import { AccountLink } from "@/components/layout/account-link";
 import { CartLink } from "@/components/layout/cart-link";
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { mainNav } from "@/lib/navigation";
@@ -45,10 +46,12 @@ export const Header = () => {
               {link.label}
             </Link>
           ))}
+          <AccountLink />
           <CartLink />
         </nav>
 
         <div className="flex items-center gap-8 lg:hidden">
+          <AccountLink />
           <CartLink />
           <MobileNav />
         </div>

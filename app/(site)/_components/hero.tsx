@@ -21,7 +21,7 @@ export const Hero = () => (
         Des soins qui révèlent, des pas qui avancent
       </h1>
       <Link
-        href="/reserver"
+        href="/reservation"
         className="mt-20 inline-flex h-18 items-center justify-center rounded-full bg-blush px-12 font-sans text-lg text-cocoa transition-colors hover:bg-sand md:mt-24 md:h-20"
       >
         Prendre rendez-vous

@@ -35,7 +35,7 @@ export const Footer = () => (
             « Ne pas cacher. Prendre soin. »
           </p>
           <Link
-            href="/reserver"
+            href="/reservation"
             className="mt-8 inline-flex h-14 items-center justify-center rounded-full bg-blush px-8 font-sans text-base text-cocoa transition-colors hover:bg-sand"
           >
             prendre rendez-vous

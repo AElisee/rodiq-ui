@@ -1,6 +1,6 @@
-import { useEffect, useSyncExternalStore } from "react";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
+import { createHydrationHook } from "./hydration";
 
 type CartItem = {
   id: string;
@@ -49,19 +49,5 @@ export const useCartStore = create<CartState>()(
 export const selectCartCount = (s: CartState) =>
   s.items.reduce((sum, item) => sum + item.quantity, 0);
 
-// Côté serveur (pas de localStorage), zustand n'attache pas l'API persist
-const subscribeHydration = (onChange: () => void) =>
-  useCartStore.persist?.onFinishHydration(onChange) ?? (() => {});
-const getHydrated = () => useCartStore.persist?.hasHydrated() ?? false;
-
-// Vrai une fois le panier relu depuis le localStorage (évite d'afficher « panier vide » au chargement).
-// Relance la lecture si personne ne l'a faite (store recréé par le Fast Refresh, header absent…)
-export const useCartHydrated = () => {
-  const hydrated = useSyncExternalStore(subscribeHydration, getHydrated, () => false);
-
-  useEffect(() => {
-    if (!useCartStore.persist.hasHydrated()) useCartStore.persist.rehydrate();
-  }, []);
-
-  return hydrated;
-};
+// Vrai une fois le panier relu depuis le localStorage (évite d'afficher « panier vide » au chargement)
+export const useCartHydrated = createHydrationHook(useCartStore);

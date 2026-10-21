@@ -45,7 +45,7 @@ export const MobileNav = () => {
           ))}
         </nav>
         <Link
-          href="/reserver"
+          href="/reservation"
           onClick={() => setOpen(false)}
           className="mt-10 inline-flex h-14 items-center justify-center rounded-full bg-blush px-8 font-sans text-base text-cocoa transition-colors hover:bg-sand"
         >

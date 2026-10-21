@@ -133,11 +133,11 @@ export const ShopCatalog = () => {
           <Select value={sort} onValueChange={(value) => changeSort(value as SortOrder)}>
             <SelectTrigger
               aria-label="Trier les produits"
-              className="h-11 rounded-full border-sand px-5 font-sans text-sm text-cocoa data-[size=default]:h-11"
+              className="h-12 min-w-48 justify-between rounded-full border-sand px-6 font-sans text-base text-cocoa data-[size=default]:h-12 [&>svg]:size-5"
             >
               <SelectValue />
             </SelectTrigger>
-            <SelectContent position="popper" align="end" className="bg-pearl font-sans text-cocoa">
+            <SelectContent position="popper" align="end" className="bg-pearl font-sans text-cocoa [&_[data-slot=select-item]]:py-2 [&_[data-slot=select-item]]:text-base">
               {sortOptions.map((option) => (
                 <SelectItem key={option.value} value={option.value}>
                   {option.label}

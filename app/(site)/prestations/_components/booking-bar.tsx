@@ -65,7 +65,7 @@ export const BookingBar = () => {
               Tout retirer
             </button>
             <Link
-              href="/reserver"
+              href="/reservation"
               className="inline-flex h-14 flex-1 items-center justify-center rounded-full bg-blush px-8 font-sans text-base text-cocoa transition-colors hover:bg-sand md:flex-none"
             >
               Continuer la réservation
