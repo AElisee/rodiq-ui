@@ -3,6 +3,8 @@ import type { StaticImageData } from "next/image";
 export type ProductCategory = {
   id: string;
   name: string;
+  // Texte affiché sur la fiche des produits qui n'ont pas encore leur propre description
+  description: string;
 };
 
 export type Product = {
@@ -14,18 +16,42 @@ export type Product = {
   // Prix d'origine (FCFA) affiché barré quand le produit est en promotion
   compareAtPrice?: number;
   description?: string;
-  image?: StaticImageData;
+  // Photos du produit : la première sert de visuel principal (boutique, panier)
+  images?: StaticImageData[];
   soldOut?: boolean;
 };
 
 export const productCategories: ProductCategory[] = [
-  { id: "vernis", name: "Vernis" },
-  { id: "soins-ongles", name: "Soins des ongles" },
-  { id: "mains-pieds", name: "Mains & pieds" },
-  { id: "accessoires", name: "Accessoires" },
+  {
+    id: "vernis",
+    name: "Vernis",
+    description:
+      "Une couleur soigneusement choisie pour sublimer vos ongles, avec une tenue et une brillance pensées pour durer entre deux rendez-vous.",
+  },
+  {
+    id: "soins-ongles",
+    name: "Soins des ongles",
+    description:
+      "Un soin ciblé pour nourrir, renforcer et protéger l'ongle naturel au quotidien, dans le prolongement de nos prestations.",
+  },
+  {
+    id: "mains-pieds",
+    name: "Mains & pieds",
+    description:
+      "Une formule douce et nourrissante pour garder des mains et des pieds souples et réconfortés, jour après jour.",
+  },
+  {
+    id: "accessoires",
+    name: "Accessoires",
+    description:
+      "Un accessoire de qualité professionnelle pour entretenir vos ongles chez vous avec précision et en douceur.",
+  },
 ];
 
-// Catalogue provisoire : à remplacer par les produits (noms, prix, photos) transmis par la cliente
+// Catalogue provisoire : à remplacer par les produits (noms, prix, photos) transmis par la cliente.
+// Photos : importer les fichiers de public/images/produits puis les lister dans `images`, ex.
+//   import vernisNude1 from "@/public/images/produits/vernis-nude-rose-1.jpg";
+//   { id: "vernis-nude-rose", …, images: [vernisNude1, vernisNude2] }
 export const products: Product[] = [
   { id: "vernis-nude-rose", name: "Vernis nude rosé", categoryId: "vernis", price: 6000 },
   { id: "vernis-rouge-cerise", name: "Vernis rouge cerise", categoryId: "vernis", price: 6000 },
@@ -177,3 +203,14 @@ export const getDiscountPercent = (product: Product) =>
   product.compareAtPrice && product.compareAtPrice > product.price
     ? Math.round((1 - product.price / product.compareAtPrice) * 100)
     : null;
+
+export const getProduct = (id: string) => products.find((p) => p.id === id);
+
+export const getCategory = (id: string) => productCategories.find((c) => c.id === id);
+
+// Autres produits de la même catégorie, disponibles en premier
+export const getRelatedProducts = (product: Product, limit = 4) =>
+  products
+    .filter((p) => p.categoryId === product.categoryId && p.id !== product.id)
+    .toSorted((a, b) => Number(a.soldOut ?? false) - Number(b.soldOut ?? false))
+    .slice(0, limit);

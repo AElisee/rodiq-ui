@@ -1,7 +1,8 @@
+"use client";
+
 import Link from "next/link";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
-import { allPrestations } from "@/lib/prestations";
 import {
   cancellationDeadline,
   contactChannels,
@@ -10,11 +11,15 @@ import {
   statusMeta,
   type Reservation,
 } from "@/lib/reservations";
+import { useAllPrestations } from "@/lib/stores/catalog-store";
+import { useSettingsStore } from "@/lib/stores/settings-store";
 import { cn } from "@/lib/utils";
 
 // Écran affiché une fois la demande envoyée
 export const BookingConfirmation = ({ reservation }: { reservation: Reservation }) => {
   const { client } = reservation;
+  const allPrestations = useAllPrestations();
+  const noticeDays = useSettingsStore((s) => s.rules.cancellationNoticeDays);
   const prestations = allPrestations.filter((p) => reservation.prestationIds.includes(p.id));
   const channel = contactChannels.find((c) => c.value === client.contactChannel)?.label;
   const contact =
@@ -61,7 +66,7 @@ export const BookingConfirmation = ({ reservation }: { reservation: Reservation 
           <div className="flex flex-col gap-1 sm:flex-row sm:justify-between sm:gap-4">
             <dt className="text-taupe">Annulation en ligne</dt>
             <dd className="sm:text-right">
-              jusqu&apos;au {format(cancellationDeadline(reservation), "d MMMM", { locale: fr })} inclus
+              jusqu&apos;au {format(cancellationDeadline(reservation, noticeDays), "d MMMM", { locale: fr })} inclus
             </dd>
           </div>
         </dl>

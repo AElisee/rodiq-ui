@@ -1,6 +1,7 @@
 import { addDays, format } from "date-fns";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
+import { generateDemoReservations } from "@/lib/demo-data";
 import type { Reservation } from "@/lib/reservations";
 import { createHydrationHook } from "./hydration";
 
@@ -8,6 +9,10 @@ type ReservationState = {
   reservations: Reservation[];
   add: (reservation: Reservation) => void;
   cancel: (id: string, reason?: string) => void;
+  // Actions de l'admin
+  confirm: (id: string) => void;
+  reject: (id: string, reason: string) => void;
+  complete: (id: string) => void;
 };
 
 // Données de démonstration : un historique avec chaque statut traité par l'admin
@@ -65,22 +70,39 @@ const demoReservations: Reservation[] = [
   },
 ];
 
-// Réservations de la cliente (maquette : conservées dans le navigateur en attendant l'API).
+const setStatus = (
+  reservations: Reservation[],
+  id: string,
+  changes: Pick<Reservation, "status"> & Partial<Reservation>,
+) => reservations.map((r) => (r.id === id ? { ...r, ...changes } : r));
+
+// Réservations de toutes les clientes : la cliente ne voit que les siennes, l'admin les traite (maquette : conservées dans le navigateur en attendant l'API).
 // Hydratation manuelle (skipHydration) pour éviter un écart serveur / client.
 export const useReservationStore = create<ReservationState>()(
   persist(
     (set) => ({
-      reservations: demoReservations,
+      reservations: [...demoReservations, ...generateDemoReservations()],
       add: (reservation) => set((s) => ({ reservations: [reservation, ...s.reservations] })),
       cancel: (id, reason) =>
         set((s) => ({
-          reservations: s.reservations.map((r) =>
-            r.id === id ? { ...r, status: "annulee", cancellationReason: reason } : r,
-          ),
+          reservations: setStatus(s.reservations, id, { status: "annulee", cancellationReason: reason }),
         })),
+      confirm: (id) => set((s) => ({ reservations: setStatus(s.reservations, id, { status: "confirmee" }) })),
+      reject: (id, reason) =>
+        set((s) => ({
+          reservations: setStatus(s.reservations, id, { status: "refusee", rejectionReason: reason }),
+        })),
+      complete: (id) => set((s) => ({ reservations: setStatus(s.reservations, id, { status: "terminee" }) })),
     }),
     {
       name: "rodiq-reservations",
+      // v1 : ajout des réservations des autres clientes pour l'admin
+      version: 1,
+      migrate: (persisted, version) => {
+        const state = persisted as Pick<ReservationState, "reservations">;
+        if (version < 1) state.reservations = [...state.reservations, ...generateDemoReservations()];
+        return state as ReservationState;
+      },
       storage: createJSONStorage(() => localStorage),
       skipHydration: true,
     },

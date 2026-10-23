@@ -1,19 +1,7 @@
 import Link from "next/link";
 import { Logo } from "@/components/brand/logo";
+import { SalonContact, SalonHours } from "@/components/layout/salon-details";
 import { mainNav } from "@/lib/navigation";
-
-// TODO : remplacer par les vraies coordonnées et horaires du salon
-const contact = {
-  address: "Adresse du salon",
-  phone: "+225 00 00 00 00 44",
-  email: "contact@rodiq.com",
-};
-
-const hours = [
-  { days: "Lundi – Vendredi", time: "9h – 19h" },
-  { days: "Samedi", time: "9h – 17h" },
-  { days: "Dimanche", time: "Fermé" },
-];
 
 const socials = [
   { label: "Instagram", href: "https://instagram.com" },
@@ -57,27 +45,12 @@ export const Footer = () => (
 
         <div>
           <h2 className="text-sm font-semibold tracking-[0.2em] text-blush uppercase">Contact</h2>
-          <address className="mt-6 flex flex-col gap-3 not-italic">
-            <span>{contact.address}</span>
-            <a href={`tel:${contact.phone.replace(/\s/g, "")}`} className={linkClass + " self-start"}>
-              {contact.phone}
-            </a>
-            <a href={`mailto:${contact.email}`} className={linkClass + " self-start"}>
-              {contact.email}
-            </a>
-          </address>
+          <SalonContact linkClassName={linkClass} />
         </div>
 
         <div>
           <h2 className="text-sm font-semibold tracking-[0.2em] text-blush uppercase">Horaires</h2>
-          <dl className="mt-6 flex flex-col gap-3">
-            {hours.map(({ days, time }) => (
-              <div key={days}>
-                <dt>{days}</dt>
-                <dd className="text-sand">{time}</dd>
-              </div>
-            ))}
-          </dl>
+          <SalonHours />
         </div>
       </div>
 

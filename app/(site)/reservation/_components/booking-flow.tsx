@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import Link from "next/link";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useForm, useWatch } from "react-hook-form";
+import { useShallow } from "zustand/react/shallow";
 import { z } from "zod";
 import {
   FieldError,
@@ -14,9 +15,8 @@ import {
   Required,
   submitClassName,
 } from "@/components/forms/form-fields";
-import { allPrestations, formatPrice } from "@/lib/prestations";
+import { formatPrice } from "@/lib/prestations";
 import {
-  bookingSettings,
   contactChannels,
   formatDay,
   formatSlotTime,
@@ -32,7 +32,9 @@ import {
   useAuthStore,
 } from "@/lib/stores/auth-store";
 import { useBookingStore } from "@/lib/stores/booking-store";
+import { useAllPrestations } from "@/lib/stores/catalog-store";
 import { useReservationStore, useReservationsHydrated } from "@/lib/stores/reservation-store";
+import { selectSchedule, useSettingsHydrated, useSettingsStore } from "@/lib/stores/settings-store";
 import {
   formatPhone,
   nameSchema,
@@ -108,6 +110,9 @@ const Step = ({ number, title, children }: { number: number; title: string; chil
 export const BookingFlow = () => {
   const reservationsHydrated = useReservationsHydrated();
   const authHydrated = useAuthHydrated();
+  const settingsHydrated = useSettingsHydrated();
+  const schedule = useSettingsStore(useShallow(selectSchedule));
+  const allPrestations = useAllPrestations();
   const selectedIds = useBookingStore((s) => s.selectedIds);
   const slotId = useBookingStore((s) => s.slotId);
   const setSlotId = useBookingStore((s) => s.setSlot);
@@ -170,17 +175,23 @@ export const BookingFlow = () => {
 
   const emailTaken = useAuthStore(selectEmailTaken(values.email));
 
-  // Places restantes = capacité - réservations des autres clientes - nos réservations actives
+  // Places restantes = capacité du créneau - réservations actives
   const slots = useMemo<SlotAvailability[]>(() => {
-    if (!reservationsHydrated) return [];
-    return getSlots().map((slot) => {
-      const own = reservations.filter((r) => r.slotId === slot.id && isActive(r.status)).length;
-      return { ...slot, remaining: Math.max(slot.capacity - slot.booked - own, 0) };
-    });
-  }, [reservationsHydrated, reservations]);
+    if (!reservationsHydrated || !settingsHydrated) return [];
+    const taken = new Map<string, number>();
+    for (const r of reservations) {
+      if (isActive(r.status)) taken.set(r.slotId, (taken.get(r.slotId) ?? 0) + 1);
+    }
+    return getSlots(schedule).map((slot) => ({
+      ...slot,
+      remaining: Math.max(slot.capacity - (taken.get(slot.id) ?? 0), 0),
+    }));
+  }, [reservationsHydrated, settingsHydrated, reservations, schedule]);
 
   // Le contenu dépend du navigateur (sélection, réservations, session) : rien à afficher côté serveur
-  if (!reservationsHydrated || !authHydrated) return <div className="min-h-96" aria-hidden />;
+  if (!reservationsHydrated || !authHydrated || !settingsHydrated) {
+    return <div className="min-h-96" aria-hidden />;
+  }
 
   if (confirmed) return <BookingConfirmation reservation={confirmed} />;
 
@@ -453,7 +464,7 @@ export const BookingFlow = () => {
             />
             <span>
               J&apos;ai bien noté que je peux annuler ma réservation en ligne jusqu&apos;à{" "}
-              {bookingSettings.cancellationNoticeDays} jours avant le rendez-vous. Passé ce délai, je
+              {schedule.rules.cancellationNoticeDays} jours avant le rendez-vous. Passé ce délai, je
               contacte le salon.
               <Required />
             </span>

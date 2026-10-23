@@ -45,19 +45,39 @@ export type Slot = {
   start: string; // HH:mm
   end: string; // HH:mm
   capacity: number;
-  // Places déjà prises par d'autres clientes (fourni par l'API)
-  booked: number;
 };
 
-// Réglages définis par l'admin (maquette : valeurs fixes en attendant l'API)
-export const bookingSettings = {
+// Règles de réservation réglées par l'admin (voir lib/stores/settings-store.ts)
+export type BookingRules = {
   // Annulation possible jusqu'à N jours avant le jour du rendez-vous
-  cancellationNoticeDays: 2,
+  cancellationNoticeDays: number;
   // Réservation ouverte sur les N prochains jours
-  bookingWindowDays: 30,
+  bookingWindowDays: number;
   // Délai minimum entre la réservation et le début du créneau
-  minNoticeHours: 12,
+  minNoticeHours: number;
 };
+
+export type DayHours = {
+  open: boolean;
+  opening: string; // HH:mm
+  closing: string; // HH:mm
+  // Pause déjeuner facultative : aucun créneau ne la chevauche
+  breakStart?: string;
+  breakEnd?: string;
+};
+
+export type ClosedDate = { date: string; label: string }; // yyyy-MM-dd
+
+export type Schedule = {
+  rules: BookingRules;
+  // Index 0 = dimanche … 6 = samedi (comme Date.getDay())
+  week: DayHours[];
+  slotMinutes: number;
+  slotCapacity: number;
+  closedDates: ClosedDate[];
+};
+
+export const weekdayNames = ["Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
 
 export const statusMeta: Record<
   ReservationStatus,
@@ -107,13 +127,12 @@ export const slotStart = (date: string, start: string) =>
   parse(`${date} ${start}`, "yyyy-MM-dd HH:mm", new Date());
 
 // Dernier jour (inclus) où la cliente peut annuler elle-même
-export const cancellationDeadline = (reservation: Pick<Reservation, "date">) =>
-  addDays(slotDate(reservation.date), -bookingSettings.cancellationNoticeDays);
+export const cancellationDeadline = (reservation: Pick<Reservation, "date">, noticeDays: number) =>
+  addDays(slotDate(reservation.date), -noticeDays);
 
-export const canCancel = (reservation: Reservation, now = new Date()) =>
+export const canCancel = (reservation: Reservation, noticeDays: number, now = new Date()) =>
   isActive(reservation.status) &&
-  differenceInCalendarDays(slotDate(reservation.date), now) >=
-    bookingSettings.cancellationNoticeDays;
+  differenceInCalendarDays(slotDate(reservation.date), now) >= noticeDays;
 
 export const formatDay = (date: string | Date) =>
   format(typeof date === "string" ? slotDate(date) : date, "EEEE d MMMM yyyy", { locale: fr });
@@ -130,35 +149,72 @@ export const generateReference = () => {
   return `RDQ-${code.join("")}`;
 };
 
-// ---------------------------------------------------------------------------
-// Maquette : créneaux paramétrés par l'admin, générés en attendant l'API.
-// Ouvert du mardi au samedi, 4 créneaux par jour, 2 places par créneau.
-// ---------------------------------------------------------------------------
-const openDays = [2, 3, 4, 5, 6];
-const dailySlots = [
-  { start: "09:00", end: "11:00" },
-  { start: "11:00", end: "13:00" },
-  { start: "14:00", end: "16:00" },
-  { start: "16:00", end: "18:00" },
-];
-const SLOT_CAPACITY = 2;
+const toMinutes = (time: string) => {
+  const [h, m] = time.split(":").map(Number);
+  return h * 60 + m;
+};
 
-// Pseudo-aléatoire stable pour simuler les places prises par d'autres clientes
-const mockBooked = (id: string) =>
-  [...id].reduce((hash, char) => (hash * 31 + char.charCodeAt(0)) % 997, 7) % (SLOT_CAPACITY + 1);
+const toTime = (minutes: number) =>
+  `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
 
-export const getSlots = (now = new Date()): Slot[] => {
-  const earliest = new Date(now.getTime() + bookingSettings.minNoticeHours * 3_600_000);
+// Créneaux d'une journée : de l'ouverture à la fermeture, par pas de slotMinutes, hors pause
+export const daySlotTimes = (hours: DayHours, slotMinutes: number) => {
+  if (!hours.open || slotMinutes <= 0) return [];
+  const closing = toMinutes(hours.closing);
+  const pause =
+    hours.breakStart && hours.breakEnd
+      ? { start: toMinutes(hours.breakStart), end: toMinutes(hours.breakEnd) }
+      : null;
+  const times: { start: string; end: string }[] = [];
+  let start = toMinutes(hours.opening);
+
+  while (start + slotMinutes <= closing) {
+    // Le créneau chevaucherait la pause : on reprend à la fin de celle-ci
+    if (pause && start < pause.end && start + slotMinutes > pause.start) {
+      start = Math.max(start, pause.end);
+      continue;
+    }
+    times.push({ start: toTime(start), end: toTime(start + slotMinutes) });
+    start += slotMinutes;
+  }
+  return times;
+};
+
+// Créneaux réservables sur la fenêtre de réservation (hors jours fermés et délai minimum)
+export const getSlots = (schedule: Schedule, now = new Date()): Slot[] => {
+  const { rules, week, slotMinutes, slotCapacity, closedDates } = schedule;
+  const earliest = new Date(now.getTime() + rules.minNoticeHours * 3_600_000);
   const today = startOfDay(now);
+  const closed = new Set(closedDates.map((d) => d.date));
 
-  return Array.from({ length: bookingSettings.bookingWindowDays + 1 }, (_, i) => addDays(today, i))
-    .filter((day) => openDays.includes(day.getDay()))
+  return Array.from({ length: rules.bookingWindowDays + 1 }, (_, i) => addDays(today, i))
+    .filter((day) => !closed.has(toDateKey(day)))
     .flatMap((day) =>
-      dailySlots.map(({ start, end }) => {
+      daySlotTimes(week[day.getDay()], slotMinutes).map(({ start, end }) => {
         const date = toDateKey(day);
-        const id = `${date}_${start}`;
-        return { id, date, start, end, capacity: SLOT_CAPACITY, booked: mockBooked(id) };
+        return { id: `${date}_${start}`, date, start, end, capacity: slotCapacity };
       }),
     )
     .filter((slot) => isAfter(slotStart(slot.date, slot.start), earliest));
+};
+
+const formatHour = (time: string) => time.replace(":00", "h").replace(":", "h");
+
+// Horaires groupés par jours consécutifs identiques, du lundi au dimanche (pied de page)
+export const groupOpeningHours = (week: DayHours[]) => {
+  const label = (d: DayHours) =>
+    d.open ? `${formatHour(d.opening)} – ${formatHour(d.closing)}` : "Fermé";
+  const groups: { first: number; last: number; time: string }[] = [];
+
+  for (const day of [1, 2, 3, 4, 5, 6, 0]) {
+    const time = label(week[day]);
+    const previous = groups.at(-1);
+    if (previous?.time === time) previous.last = day;
+    else groups.push({ first: day, last: day, time });
+  }
+
+  return groups.map(({ first, last, time }) => ({
+    days: first === last ? weekdayNames[first] : `${weekdayNames[first]} – ${weekdayNames[last]}`,
+    time,
+  }));
 };

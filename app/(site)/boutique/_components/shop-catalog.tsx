@@ -9,7 +9,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { productCategories, products } from "@/lib/produits";
+import { productCategories } from "@/lib/produits";
+import { useShopProducts } from "@/lib/stores/catalog-store";
 import { cn } from "@/lib/utils";
 import { Pagination } from "./pagination";
 import { ProductCard } from "./product-card";
@@ -36,6 +37,7 @@ export const ShopCatalog = () => {
   const [page, setPage] = useState(1);
   const deferredQuery = useDeferredValue(query);
   const catalogRef = useRef<HTMLDivElement>(null);
+  const products = useShopProducts();
 
   const search = normalize(deferredQuery);
   const filtered = products

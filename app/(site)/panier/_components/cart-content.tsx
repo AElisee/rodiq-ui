@@ -4,7 +4,8 @@ import Link from "next/link";
 import { Minus, Plus, X } from "lucide-react";
 import { ProductVisual } from "@/components/shop/product-visual";
 import { formatPrice } from "@/lib/prestations";
-import { productCategories, products } from "@/lib/produits";
+import { productCategories } from "@/lib/produits";
+import { useShopProducts } from "@/lib/stores/catalog-store";
 import { useCartHydrated, useCartStore } from "@/lib/stores/cart-store";
 
 const categoryNames = new Map(productCategories.map((c) => [c.id, c.name]));
@@ -16,6 +17,7 @@ export const CartContent = () => {
   const setQuantity = useCartStore((s) => s.setQuantity);
   const remove = useCartStore((s) => s.remove);
   const clear = useCartStore((s) => s.clear);
+  const products = useShopProducts();
 
   // Le panier est relu depuis le navigateur : rien à afficher côté serveur
   if (!hydrated) return <div className="min-h-64" aria-hidden />;

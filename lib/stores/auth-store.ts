@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
+import { demoClientAccounts } from "@/lib/demo-data";
 import { createHydrationHook } from "./hydration";
 
 export type Account = {
@@ -47,7 +48,7 @@ const demoAccount: Account = {
 export const useAuthStore = create<AuthState>()(
   persist(
     (set, get) => ({
-      accounts: [demoAccount],
+      accounts: [demoAccount, ...demoClientAccounts],
       currentAccountId: null,
       signUp: async ({ password, ...data }) => {
         const email = normalizeEmail(data.email);
@@ -75,6 +76,16 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: "rodiq-auth",
+      // v1 : ajout des clientes de démonstration pour l'admin
+      version: 1,
+      migrate: (persisted, version) => {
+        const state = persisted as Pick<AuthState, "accounts" | "currentAccountId">;
+        if (version < 1) {
+          const ids = new Set(state.accounts.map((a) => a.id));
+          state.accounts = [...state.accounts, ...demoClientAccounts.filter((a) => !ids.has(a.id))];
+        }
+        return state as AuthState;
+      },
       storage: createJSONStorage(() => localStorage),
       skipHydration: true,
     },

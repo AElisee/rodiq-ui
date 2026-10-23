@@ -3,14 +3,16 @@
 import Link from "next/link";
 import { X } from "lucide-react";
 import { useEffect } from "react";
-import { allPrestations, formatPrice } from "@/lib/prestations";
+import { formatPrice } from "@/lib/prestations";
 import { useBookingStore } from "@/lib/stores/booking-store";
+import { useAllPrestations } from "@/lib/stores/catalog-store";
 
 // Barre fixe en bas d'écran : récapitulatif de la sélection et accès à la réservation
 export const BookingBar = () => {
   const selectedIds = useBookingStore((s) => s.selectedIds);
   const remove = useBookingStore((s) => s.remove);
   const clear = useBookingStore((s) => s.clear);
+  const allPrestations = useAllPrestations();
 
   useEffect(() => {
     useBookingStore.persist.rehydrate();

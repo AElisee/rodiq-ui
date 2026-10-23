@@ -1,14 +1,16 @@
 "use client";
 
 import { Check } from "lucide-react";
-import { formatPrice, prestationCategories } from "@/lib/prestations";
+import { formatPrice } from "@/lib/prestations";
 import { useBookingStore } from "@/lib/stores/booking-store";
+import { usePrestationCategories } from "@/lib/stores/catalog-store";
 import { cn } from "@/lib/utils";
 
 // Étape 1 : sélection des prestations (partagée avec la page /prestations)
 export const PrestationPicker = () => {
   const selectedIds = useBookingStore((s) => s.selectedIds);
   const toggle = useBookingStore((s) => s.toggle);
+  const prestationCategories = usePrestationCategories();
 
   return (
     <div className="flex flex-col gap-8">

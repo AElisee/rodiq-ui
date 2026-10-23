@@ -1,23 +1,69 @@
 "use client";
 
 import Link from "next/link";
-import { UserRound } from "lucide-react";
+import { CalendarDays, LogOut, UserRound } from "lucide-react";
+import { toast } from "sonner";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { selectCurrentAccount, useAuthHydrated, useAuthStore } from "@/lib/stores/auth-store";
 
-// Accès au compte : connexion si déconnectée, sinon ses réservations
+const iconClassName = "flex items-center gap-1.5 text-base font-semibold transition-opacity hover:opacity-75";
+const itemClassName = "cursor-pointer gap-3 px-3 py-2.5 text-base text-cocoa focus:bg-sand";
+
+// Déconnexion avec confirmation (menu du compte et menu mobile)
+export const useSignOut = () => {
+  const signOut = useAuthStore((s) => s.signOut);
+  return () => {
+    signOut();
+    toast.success("Vous êtes déconnectée", { description: "À très bientôt chez RODIQ" });
+  };
+};
+
+// Accès au compte : connexion si déconnectée, sinon menu (réservations, déconnexion)
 export const AccountLink = () => {
   const hydrated = useAuthHydrated();
   const account = useAuthStore(selectCurrentAccount);
-  const signedIn = hydrated && !!account;
+  const signOut = useSignOut();
+
+  if (!hydrated || !account) {
+    return (
+      <Link href="/connexion" aria-label="Se connecter" className={iconClassName}>
+        <UserRound className="size-6" strokeWidth={1.5} />
+      </Link>
+    );
+  }
 
   return (
-    <Link
-      href={signedIn ? "/reservation/mes-reservations" : "/connexion"}
-      aria-label={signedIn ? `Mon compte, ${account.firstName}` : "Se connecter"}
-      className="flex items-center gap-1.5 text-base font-semibold transition-opacity hover:opacity-75"
-    >
-      <UserRound className="size-6" strokeWidth={1.5} />
-      {signedIn && <span className="hidden xl:inline">{account.firstName}</span>}
-    </Link>
+    <DropdownMenu modal={false}>
+      <DropdownMenuTrigger aria-label={`Mon compte, ${account.firstName}`} className={iconClassName}>
+        <UserRound className="size-6" strokeWidth={1.5} />
+        <span className="hidden xl:inline">{account.firstName}</span>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" sideOffset={12} className="w-60 bg-pearl p-2 font-sans text-cocoa">
+        <DropdownMenuLabel className="px-3 py-2">
+          <span className="block font-serif text-lg">
+            {account.firstName} {account.lastName}
+          </span>
+          <span className="block truncate text-sm font-normal text-taupe">{account.email}</span>
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator className="bg-sand" />
+        <DropdownMenuItem asChild className={itemClassName}>
+          <Link href="/reservation/mes-reservations">
+            <CalendarDays className="size-4" strokeWidth={1.75} />
+            Mes réservations
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={signOut} className={itemClassName}>
+          <LogOut className="size-4" strokeWidth={1.75} />
+          Se déconnecter
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 };

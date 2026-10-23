@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Check, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -8,8 +9,17 @@ import { ProductVisual } from "@/components/shop/product-visual";
 import { getDiscountPercent, type Product } from "@/lib/produits";
 import { formatPrice } from "@/lib/prestations";
 import { useCartStore } from "@/lib/stores/cart-store";
+import { useShopProduct } from "@/lib/stores/catalog-store";
 
-export const ProductCard = ({ product }: { product: Product }) => {
+type ProductCardProps = {
+  product: Product;
+  // h3 quand la grille est placée sous un titre de section (fiche produit)
+  headingAs?: "h2" | "h3";
+};
+
+export const ProductCard = ({ product: baseProduct, headingAs: Heading = "h2" }: ProductCardProps) => {
+  // Nom, prix et disponibilité modifiables depuis l'admin
+  const product = useShopProduct(baseProduct);
   const router = useRouter();
   const add = useCartStore((s) => s.add);
   // Confirmation « ajouté » affichée brièvement après l'ajout
@@ -33,7 +43,13 @@ export const ProductCard = ({ product }: { product: Product }) => {
 
   return (
     <article className="flex h-full flex-col">
-      <div className="relative aspect-[4/5] overflow-hidden rounded-[var(--radius)] bg-sand">
+      {/* L'image n'est pas tabulable : le lien du nom suffit au clavier */}
+      <Link
+        href={`/boutique/${product.id}`}
+        tabIndex={-1}
+        aria-hidden
+        className="relative block aspect-[4/5] overflow-hidden rounded-[var(--radius)] bg-sand"
+      >
         <ProductVisual
           product={product}
           sizes="(min-width: 1024px) 270px, (min-width: 768px) 33vw, 50vw"
@@ -50,11 +66,13 @@ export const ProductCard = ({ product }: { product: Product }) => {
             -{discount}%
           </span>
         )}
-      </div>
+      </Link>
 
-      <h2 className="mt-4 font-serif text-[clamp(1rem,1.3vw,1.2rem)] leading-snug text-cocoa">
-        {product.name}
-      </h2>
+      <Heading className="mt-4 font-serif text-[clamp(1rem,1.3vw,1.2rem)] leading-snug text-cocoa">
+        <Link href={`/boutique/${product.id}`} className="underline-offset-4 hover:underline">
+          {product.name}
+        </Link>
+      </Heading>
       <p className="mt-1 mb-4 flex flex-wrap items-baseline gap-x-2 font-sans text-sm">
         <span className={discount !== null ? "text-cocoa" : "text-taupe"}>
           {formatPrice(product.price)}

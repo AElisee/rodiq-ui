@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { LogOut } from "lucide-react";
 import { useState } from "react";
 import {
   Sheet,
@@ -9,10 +10,16 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import { useSignOut } from "@/components/layout/account-link";
 import { mainNav } from "@/lib/navigation";
+import { selectCurrentAccount, useAuthHydrated, useAuthStore } from "@/lib/stores/auth-store";
 
 export const MobileNav = () => {
   const [open, setOpen] = useState(false);
+  const hydrated = useAuthHydrated();
+  const account = useAuthStore(selectCurrentAccount);
+  const signOut = useSignOut();
+  const close = () => setOpen(false);
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
@@ -26,7 +33,7 @@ export const MobileNav = () => {
       </SheetTrigger>
       <SheetContent
         side="right"
-        className="w-full bg-pearl px-8 pt-24 font-serif data-[side=right]:sm:max-w-sm"
+        className="w-full gap-0 overflow-y-auto bg-pearl px-8 pt-24 pb-10 font-serif data-[side=right]:sm:max-w-sm"
       >
         <SheetTitle className="sr-only">Menu</SheetTitle>
         <SheetDescription className="sr-only">
@@ -37,7 +44,7 @@ export const MobileNav = () => {
             <Link
               key={link.href}
               href={link.href}
-              onClick={() => setOpen(false)}
+              onClick={close}
               className="text-3xl text-cocoa"
             >
               {link.label}
@@ -46,11 +53,57 @@ export const MobileNav = () => {
         </nav>
         <Link
           href="/reservation"
-          onClick={() => setOpen(false)}
+          onClick={close}
           className="mt-10 inline-flex h-14 items-center justify-center rounded-full bg-blush px-8 font-sans text-base text-cocoa transition-colors hover:bg-sand"
         >
           Prendre rendez-vous
         </Link>
+
+        {/* Compte : en bas du menu, une fois la session relue */}
+        {hydrated && (
+          <div className="mt-auto border-t border-sand pt-8">
+            {account ? (
+              <>
+                <p className="text-2xl text-cocoa">Bonjour {account.firstName}</p>
+                <Link
+                  href="/reservation/mes-reservations"
+                  onClick={close}
+                  className="mt-3 block font-sans text-base text-cocoa underline-offset-4 hover:underline"
+                >
+                  Mes réservations
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => {
+                    signOut();
+                    close();
+                  }}
+                  className="mt-6 inline-flex h-12 w-full items-center justify-center gap-2 rounded-full bg-blush px-6 font-sans text-base text-cocoa transition-colors hover:bg-sand"
+                >
+                  <LogOut className="size-4" strokeWidth={1.75} />
+                  Se déconnecter
+                </button>
+              </>
+            ) : (
+              <div className="grid grid-cols-2 gap-3">
+                <Link
+                  href="/connexion"
+                  onClick={close}
+                  className="inline-flex h-12 items-center justify-center rounded-full bg-blush px-4 font-sans text-base text-cocoa transition-colors hover:bg-sand"
+                >
+                  Se connecter
+                </Link>
+                <Link
+                  href="/inscription"
+                  onClick={close}
+                  className="inline-flex h-12 items-center justify-center rounded-full bg-blush px-4 font-sans text-base text-cocoa transition-colors hover:bg-sand"
+                >
+                  S&apos;inscrire
+                </Link>
+              </div>
+            )}
+          </div>
+        )}
       </SheetContent>
     </Sheet>
   );

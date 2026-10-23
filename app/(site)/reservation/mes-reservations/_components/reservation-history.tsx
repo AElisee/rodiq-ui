@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { statusMeta, type ReservationStatus } from "@/lib/reservations";
+import { useAuthHydrated, useAuthStore } from "@/lib/stores/auth-store";
 import { useReservationStore, useReservationsHydrated } from "@/lib/stores/reservation-store";
 import { cn } from "@/lib/utils";
 import { ReservationCard } from "./reservation-card";
@@ -18,11 +19,16 @@ const filters: { value: ReservationStatus | null; label: string }[] = [
 // Historique des réservations, filtrable par statut
 export const ReservationHistory = () => {
   const hydrated = useReservationsHydrated();
-  const reservations = useReservationStore((s) => s.reservations);
+  const authHydrated = useAuthHydrated();
+  const accountId = useAuthStore((s) => s.currentAccountId);
+  const allReservations = useReservationStore((s) => s.reservations);
   const [status, setStatus] = useState<ReservationStatus | null>(null);
 
   // Les réservations sont relues depuis le navigateur : rien à afficher côté serveur
-  if (!hydrated) return <div className="min-h-64" aria-hidden />;
+  if (!hydrated || !authHydrated) return <div className="min-h-64" aria-hidden />;
+
+  // Connectée : les réservations de son compte ; sinon celles faites sans compte sur ce navigateur
+  const reservations = allReservations.filter((r) => (r.accountId ?? null) === accountId);
 
   if (reservations.length === 0) {
     return (

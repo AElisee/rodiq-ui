@@ -1,5 +1,6 @@
 import { Footer } from "@/components/layout/footer";
 import { Header } from "@/components/layout/header";
+import { VisitTracker } from "@/components/layout/visit-tracker";
 import { Toaster } from "@/components/ui/sonner";
 
 const SiteLayout = ({ children }: LayoutProps<"/">) => (
@@ -7,6 +8,7 @@ const SiteLayout = ({ children }: LayoutProps<"/">) => (
     <Header />
     <main className="flex flex-1 flex-col">{children}</main>
     <Footer />
+    <VisitTracker />
     {/* Notifications (ajout au panier…) : couleurs déjà mappées sur la charte via le Toaster */}
     {/* Décalage = hauteur du header compact (après scroll) + une marge */}
     <Toaster

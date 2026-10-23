@@ -3,7 +3,7 @@
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { useRouter } from "next/navigation";
-import { allPrestations, formatPrice } from "@/lib/prestations";
+import { formatPrice } from "@/lib/prestations";
 import {
   canCancel,
   cancellationDeadline,
@@ -14,6 +14,8 @@ import {
   type Reservation,
 } from "@/lib/reservations";
 import { useBookingStore } from "@/lib/stores/booking-store";
+import { useAllPrestations } from "@/lib/stores/catalog-store";
+import { useSettingsStore } from "@/lib/stores/settings-store";
 import { cn } from "@/lib/utils";
 import { CancelDialog } from "./cancel-dialog";
 
@@ -21,11 +23,13 @@ export const ReservationCard = ({ reservation }: { reservation: Reservation }) =
   const router = useRouter();
   const toggle = useBookingStore((s) => s.toggle);
   const clear = useBookingStore((s) => s.clear);
+  const allPrestations = useAllPrestations();
+  const noticeDays = useSettingsStore((s) => s.rules.cancellationNoticeDays);
 
   const prestations = allPrestations.filter((p) => reservation.prestationIds.includes(p.id));
   const total = prestations.reduce((sum, p) => sum + p.price, 0);
   const status = statusMeta[reservation.status];
-  const deadline = format(cancellationDeadline(reservation), "d MMMM", { locale: fr });
+  const deadline = format(cancellationDeadline(reservation, noticeDays), "d MMMM", { locale: fr });
 
   // Reprend les mêmes prestations pour une nouvelle réservation
   const bookAgain = () => {
@@ -79,7 +83,7 @@ export const ReservationCard = ({ reservation }: { reservation: Reservation }) =
         )}
 
         <div className="mt-5 flex flex-wrap items-center justify-between gap-4">
-          {canCancel(reservation) ? (
+          {canCancel(reservation, noticeDays) ? (
             <>
               <p className="text-taupe">Annulation en ligne possible jusqu&apos;au {deadline} inclus.</p>
               <CancelDialog reservation={reservation} />

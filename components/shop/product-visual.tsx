@@ -1,4 +1,4 @@
-import Image from "next/image";
+import Image, { type StaticImageData } from "next/image";
 import { Gem } from "lucide-react";
 import type { Product } from "@/lib/produits";
 import { cn } from "@/lib/utils";
@@ -6,16 +6,28 @@ import { cn } from "@/lib/utils";
 type ProductVisualProps = {
   product: Product;
   sizes: string;
+  // Photo à afficher (galerie de la fiche produit) ; par défaut la photo principale
+  image?: StaticImageData;
+  alt?: string;
+  preload?: boolean;
   iconClassName?: string;
 };
 
 // Photo du produit, ou visuel provisoire tant que la photo n'est pas fournie
-export const ProductVisual = ({ product, sizes, iconClassName }: ProductVisualProps) =>
-  product.image ? (
+export const ProductVisual = ({
+  product,
+  sizes,
+  image = product.images?.[0],
+  alt = product.name,
+  preload,
+  iconClassName,
+}: ProductVisualProps) =>
+  image ? (
     <Image
-      src={product.image}
-      alt={product.name}
+      src={image}
+      alt={alt}
       fill
+      preload={preload}
       placeholder="blur"
       sizes={sizes}
       className="object-cover transition-transform duration-500 hover:scale-105"
