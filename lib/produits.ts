@@ -7,6 +7,23 @@ export type ProductCategory = {
   description: string;
 };
 
+// Photo importée dans le code, ou ajoutée depuis l'admin (data URL en attendant le stockage de fichiers)
+export type ProductImage = StaticImageData | string;
+
+// Déclinaison d'un produit (teinte, contenance…) avec son propre stock, au prix du produit
+export type ProductVariant = {
+  id: string;
+  name: string;
+  stock: number;
+};
+
+// Quantité mesurée d'un produit (contenance ou poids), ex. 300 ml, 1 kg
+export const CAPACITY_UNITS = ["ml", "cl", "L"] as const;
+export const WEIGHT_UNITS = ["g", "kg"] as const;
+export type CapacityUnit = (typeof CAPACITY_UNITS)[number];
+export type WeightUnit = (typeof WEIGHT_UNITS)[number];
+export type Measure<Unit extends string = string> = { value: number; unit: Unit };
+
 export type Product = {
   id: string;
   name: string;
@@ -16,11 +33,73 @@ export type Product = {
   // Prix d'origine (FCFA) affiché barré quand le produit est en promotion
   compareAtPrice?: number;
   description?: string;
+  // Contenance (300 ml) et poids (1 kg) affichés sur la fiche
+  capacity?: Measure<CapacityUnit>;
+  weight?: Measure<WeightUnit>;
   // Photos du produit : la première sert de visuel principal (boutique, panier)
-  images?: StaticImageData[];
+  images?: ProductImage[];
+  // Déclinaisons : le stock est alors suivi par déclinaison
+  variants?: ProductVariant[];
+  // Nom du choix proposé (« Teinte », « Contenance »…)
+  variantLabel?: string;
+  // Quantité restante d'un produit sans déclinaison
+  stock?: number;
+  // Alerte « stock faible » dans l'admin à partir de cette quantité restante
+  lowStockThreshold?: number;
+  // Calculé depuis le stock (voir lib/stores/catalog-store.ts)
   soldOut?: boolean;
 };
 
+// Stock de départ des produits du catalogue qui n'en précisent pas
+export const DEFAULT_STOCK = 10;
+export const DEFAULT_LOW_STOCK_THRESHOLD = 3;
+export const DEFAULT_VARIANT_LABEL = "Déclinaison";
+
+export const formatMeasure = ({ value, unit }: Measure) => `${value.toLocaleString("fr-FR")} ${unit}`;
+
+// Contenance puis poids, mis en forme (« 300 ml », « 1 kg »)
+export const productMeasures = (product: Product) =>
+  [product.capacity, product.weight].flatMap((m) => (m ? [formatMeasure(m)] : []));
+
+export const imageSrc = (image: ProductImage) => (typeof image === "string" ? image : image.src);
+
+// Quantité restante : celle de la déclinaison, sinon le total des déclinaisons, sinon celle du produit
+export const productStock = (product: Product, variantId?: string) => {
+  if (product.variants?.length) {
+    if (variantId) return product.variants.find((v) => v.id === variantId)?.stock ?? 0;
+    return product.variants.reduce((sum, v) => sum + v.stock, 0);
+  }
+  return product.stock ?? 0;
+};
+
+export type StockLevel = "ok" | "faible" | "epuise";
+
+export const stockLevel = (stock: number, threshold = DEFAULT_LOW_STOCK_THRESHOLD): StockLevel =>
+  stock <= 0 ? "epuise" : stock <= threshold ? "faible" : "ok";
+
+// Niveau le plus critique du produit (une seule déclinaison épuisée suffit à alerter)
+export const productLevel = (product: Product): StockLevel => {
+  const levels = product.variants?.length
+    ? product.variants.map((v) => stockLevel(v.stock, product.lowStockThreshold))
+    : [stockLevel(productStock(product), product.lowStockThreshold)];
+  return levels.includes("epuise") ? "epuise" : levels.includes("faible") ? "faible" : "ok";
+};
+
+// Produit ou déclinaison à réapprovisionner (épuisé ou sous le seuil d'alerte)
+export type StockAlert = { product: Product; variant?: ProductVariant; stock: number; level: Exclude<StockLevel, "ok"> };
+
+export const stockAlerts = (products: Product[]): StockAlert[] =>
+  products.flatMap((product) => {
+    const entries = product.variants?.length
+      ? product.variants.map((variant) => ({ variant, stock: variant.stock }))
+      : [{ variant: undefined, stock: productStock(product) }];
+    return entries.flatMap(({ variant, stock }) => {
+      const level = stockLevel(stock, product.lowStockThreshold);
+      return level === "ok" ? [] : [{ product, variant, stock, level }];
+    });
+  });
+
+// Catégories de départ : ajoutées, modifiées, réordonnées et supprimées ensuite depuis l'admin (catalog-store)
 export const productCategories: ProductCategory[] = [
   {
     id: "vernis",
@@ -206,11 +285,12 @@ export const getDiscountPercent = (product: Product) =>
 
 export const getProduct = (id: string) => products.find((p) => p.id === id);
 
+// Catégories de départ seulement : côté navigateur, lire useProductCategories (catalog-store)
 export const getCategory = (id: string) => productCategories.find((c) => c.id === id);
 
 // Autres produits de la même catégorie, disponibles en premier
-export const getRelatedProducts = (product: Product, limit = 4) =>
-  products
+export const getRelatedProducts = (product: Product, catalog: Product[], limit = 4) =>
+  catalog
     .filter((p) => p.categoryId === product.categoryId && p.id !== product.id)
     .toSorted((a, b) => Number(a.soldOut ?? false) - Number(b.soldOut ?? false))
     .slice(0, limit);

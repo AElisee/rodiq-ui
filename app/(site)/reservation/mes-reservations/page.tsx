@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import bannerImage from "@/public/images/ongle-naturel.jpg";
-import { AccountBanner } from "./_components/account-banner";
+import { AccountBanner } from "@/components/layout/account-banner";
 import { ReservationHistory } from "./_components/reservation-history";
 
 export const metadata: Metadata = {
@@ -31,7 +31,7 @@ const MesReservationsPage = () => (
 
     <section className="w-full bg-pearl px-4 py-16 md:px-8 md:py-20 lg:py-24">
       <div className="mx-auto w-full max-w-4xl">
-        <AccountBanner />
+        <AccountBanner redirect="/reservation/mes-reservations" subject="réservations" />
         <ReservationHistory />
       </div>
     </section>

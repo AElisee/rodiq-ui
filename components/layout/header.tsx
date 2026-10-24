@@ -1,17 +1,19 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Logo } from "@/components/brand/logo";
 import { AccountLink } from "@/components/layout/account-link";
 import { CartLink } from "@/components/layout/cart-link";
 import { MobileNav } from "@/components/layout/mobile-nav";
-import { mainNav } from "@/lib/navigation";
+import { isNavActive, mainNav } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
 
 // Header fixe : transparent sur le hero, fond perlé dès qu'on scrolle
 export const Header = () => {
   const [scrolled, setScrolled] = useState(false);
+  const pathname = usePathname();
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 24);
@@ -34,25 +36,36 @@ export const Header = () => {
           scrolled ? "py-5 md:py-5" : "py-10 md:py-9"
         )}
       >
-        <Logo />
+        <Logo tone={scrolled ? "dark" : "light"} />
 
-        <nav className="hidden items-center gap-10 lg:flex">
-          {mainNav.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              className="relative text-base font-semibold after:absolute after:inset-x-0 after:-bottom-1 after:h-px after:origin-left after:scale-x-0 after:bg-current after:transition-transform after:duration-300 after:ease-out hover:after:scale-x-100"
-            >
-              {link.label}
-            </Link>
-          ))}
-          <AccountLink />
-          <CartLink />
+        <nav className="hidden items-center gap-2 lg:flex">
+          {mainNav.map((link) => {
+            const active = isNavActive(link.href, pathname);
+            return (
+              <Link
+                key={link.href}
+                href={link.href}
+                aria-current={active ? "page" : undefined}
+                className={cn(
+                  "relative rounded-full px-4 py-1.5 text-base font-semibold transition-colors after:absolute after:inset-x-4 after:bottom-0.5 after:h-px after:origin-left after:scale-x-0 after:bg-current after:transition-transform after:duration-300 after:ease-out",
+                  active ? "bg-sand text-cocoa" : "hover:after:scale-x-100"
+                )}
+              >
+                {link.label}
+              </Link>
+            );
+          })}
+          <div className="ml-4">
+            <CartLink />
+          </div>
+          <div className="ml-8">
+            <AccountLink />
+          </div>
         </nav>
 
         <div className="flex items-center gap-8 lg:hidden">
-          <AccountLink />
           <CartLink />
+          <AccountLink />
           <MobileNav />
         </div>
       </div>

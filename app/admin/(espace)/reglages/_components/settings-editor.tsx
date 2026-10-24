@@ -1,6 +1,7 @@
 "use client";
 
-import { Trash2 } from "lucide-react";
+import { Crosshair, Trash2, X } from "lucide-react";
+import dynamic from "next/dynamic";
 import { useState } from "react";
 import { toast } from "sonner";
 import {
@@ -12,18 +13,26 @@ import {
   adminLabelClassName,
   adminOutlineButtonClassName,
 } from "@/components/admin/admin-ui";
+import { AdminDatePicker } from "@/components/admin/admin-date-picker";
 import { FieldError } from "@/components/forms/form-fields";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   daySlotTimes,
   formatDay,
-  formatSlotTime,
   toDateKey,
   weekdayNames,
   type BookingRules,
   type DayHours,
 } from "@/lib/reservations";
-import { useSettingsHydrated, useSettingsStore, type SalonInfo } from "@/lib/stores/settings-store";
-import { emailSchema } from "@/lib/validation";
+import { useSettingsHydrated, useSettingsStore, type GeoPoint } from "@/lib/stores/settings-store";
+import { PlatformSettings } from "./platform-settings";
+import { ShippingSettingsForm } from "./shipping-settings";
+
+// Leaflet a besoin du navigateur : la carte n'est jamais rendue côté serveur
+const LocationMap = dynamic(() => import("@/components/map/location-map").then((m) => m.LocationMap), {
+  ssr: false,
+  loading: () => <div className="h-80 w-full rounded-[var(--radius)] border border-sand bg-sand" aria-hidden />,
+});
 
 // Lundi en premier, comme dans le pied de page
 const weekOrder = [1, 2, 3, 4, 5, 6, 0];
@@ -54,11 +63,14 @@ const OpeningHours = () => {
   const setSlotFormat = useSettingsStore((s) => s.setSlotFormat);
   const [draft, setDraft] = useState(week);
   const [minutes, setMinutes] = useState(slotMinutes);
-  const [capacity, setCapacity] = useState(String(slotCapacity));
+  const [capacity, setCapacity] = useState(String(slotCapacity ?? 2));
+  const [unlimited, setUnlimited] = useState(slotCapacity === null);
 
-  const capacityValue = Number(capacity);
+  const capacityValue = unlimited ? null : Number(capacity);
   const capacityError =
-    !Number.isInteger(capacityValue) || capacityValue < 1 || capacityValue > 20 ? "Entre 1 et 20 places" : undefined;
+    capacityValue !== null && (!Number.isInteger(capacityValue) || capacityValue < 1 || capacityValue > 20)
+      ? "Entre 1 et 20 places"
+      : undefined;
   const errors = draft.map(dayError);
   const invalid = errors.some(Boolean) || !!capacityError;
   const changed =
@@ -104,16 +116,29 @@ const OpeningHours = () => {
           <label htmlFor="slot-capacity" className={adminLabelClassName}>
             Places par créneau
           </label>
-          <input
-            id="slot-capacity"
-            type="number"
-            min={1}
-            max={20}
-            value={capacity}
-            onChange={(e) => setCapacity(e.target.value)}
-            aria-invalid={!!capacityError}
-            className={adminInputClassName}
-          />
+          <div className="flex items-center gap-4">
+            <input
+              id="slot-capacity"
+              type="number"
+              min={1}
+              max={20}
+              value={unlimited ? "" : capacity}
+              onChange={(e) => setCapacity(e.target.value)}
+              disabled={unlimited}
+              placeholder={unlimited ? "Illimitées" : undefined}
+              aria-invalid={!!capacityError}
+              className={`${adminInputClassName} w-28!`}
+            />
+            <label className="flex cursor-pointer items-center gap-2 font-sans text-sm text-cocoa">
+              <input
+                type="checkbox"
+                checked={unlimited}
+                onChange={(e) => setUnlimited(e.target.checked)}
+                className="size-4 accent-cocoa"
+              />
+              Illimitées
+            </label>
+          </div>
           <FieldError message={capacityError} />
         </div>
       </div>
@@ -121,7 +146,7 @@ const OpeningHours = () => {
       <ul className="divide-y divide-sand border-y border-sand font-sans text-sm text-cocoa">
         {weekOrder.map((index) => {
           const day = draft[index];
-          const slots = errors[index] ? [] : daySlotTimes(day, minutes);
+          const noSlot = !errors[index] && day.open && daySlotTimes(day, minutes).length === 0;
           return (
             <li key={index} className="flex flex-col gap-3 py-4 xl:flex-row xl:items-start xl:gap-6">
               <label className="flex w-36 shrink-0 cursor-pointer items-center gap-3 pt-2.5">
@@ -175,8 +200,9 @@ const OpeningHours = () => {
                         <button
                           type="button"
                           onClick={() => update(index, { breakStart: undefined, breakEnd: undefined })}
-                          className="text-xs whitespace-nowrap text-cocoa underline underline-offset-4"
+                          className="group inline-flex cursor-pointer items-center gap-1 text-xs whitespace-nowrap text-cocoa underline underline-offset-4 transition-[text-underline-offset] duration-300 hover:underline-offset-2"
                         >
+                          <X className="size-3.5 transition-transform duration-300 ease-out group-hover:rotate-90" strokeWidth={1.75} aria-hidden />
                           sans pause
                         </button>
                       )}
@@ -185,11 +211,7 @@ const OpeningHours = () => {
                   {errors[index] ? (
                     <FieldError message={errors[index]} />
                   ) : (
-                    <p className="text-xs text-taupe">
-                      {slots.length > 0
-                        ? `${slots.length} créneau${slots.length > 1 ? "x" : ""} : ${slots.map((s) => formatSlotTime(s.start, s.end)).join(", ")}`
-                        : "Aucun créneau : la durée dépasse les heures d'ouverture."}
-                    </p>
+                    noSlot && <p className="text-xs text-taupe">Aucun créneau : la durée dépasse les heures d&apos;ouverture.</p>
                   )}
                 </div>
               ) : (
@@ -239,7 +261,7 @@ const BookingRulesForm = () => {
     <AdminPanel className="flex flex-col gap-6">
       <div>
         <AdminPanelTitle>Règles de réservation</AdminPanelTitle>
-        <p className="mt-1 font-sans text-sm text-taupe">Fenêtre de réservation et délai d&apos;annulation par la cliente.</p>
+        <p className="mt-1 font-sans text-sm text-taupe">Fenêtre de réservation et délai d&apos;annulation par le client ou la cliente.</p>
       </div>
       <div className="grid gap-4 md:grid-cols-3">
         {ruleFields.map((field) => (
@@ -317,18 +339,11 @@ const ClosedDates = () => {
           <label htmlFor="closed-date" className={adminLabelClassName}>
             Date
           </label>
-          <input
-            id="closed-date"
-            type="date"
-            min={today}
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            className={`${adminInputClassName} sm:w-44`}
-          />
+          <AdminDatePicker id="closed-date" value={date} onChange={setDate} min={today} className="sm:w-52" />
         </div>
         <div>
           <label htmlFor="closed-label" className={adminLabelClassName}>
-            Motif <span className="text-taupe">(facultatif)</span>
+            Motif
           </label>
           <input
             id="closed-label"
@@ -369,62 +384,173 @@ const ClosedDates = () => {
   );
 };
 
-// Coordonnées affichées dans le pied de page du site
-const SalonContactForm = () => {
+const parseCoord = (value: string) => Number(value.trim().replace(",", "."));
+
+const coordError = (value: string, limit: number) => {
+  const n = parseCoord(value);
+  return value.trim() === "" || !Number.isFinite(n) || Math.abs(n) > limit ? `Entre -${limit} et ${limit}` : undefined;
+};
+
+// Adresse et position du salon : saisie de la latitude et de la longitude, ou choix sur la carte
+const SalonLocationForm = () => {
   const salon = useSettingsStore((s) => s.salon);
   const setSalon = useSettingsStore((s) => s.setSalon);
-  const [draft, setDraft] = useState<SalonInfo>(salon);
-  const emailError = emailSchema.safeParse(draft.email.trim()).success ? undefined : "Adresse e-mail invalide";
-  const phoneError = draft.phone.replace(/\D/g, "").length < 8 ? "Numéro de téléphone invalide" : undefined;
-  const addressError = draft.address.trim() ? undefined : "Indiquez l'adresse du salon";
-  const changed = JSON.stringify(draft) !== JSON.stringify(salon);
+  const location = useSettingsStore((s) => s.location);
+  const setLocation = useSettingsStore((s) => s.setLocation);
+  const [address, setAddress] = useState(salon.address);
+  const [lat, setLat] = useState(String(location.lat));
+  const [lng, setLng] = useState(String(location.lng));
+  // Dernière position valide, suivie par le repère de la carte pendant la saisie
+  const [mapPoint, setMapPoint] = useState<GeoPoint>(location);
+  const [locating, setLocating] = useState(false);
 
-  const fields: { key: keyof SalonInfo; label: string; type: string; error?: string }[] = [
-    { key: "address", label: "Adresse", type: "text", error: addressError },
-    { key: "phone", label: "Téléphone", type: "tel", error: phoneError },
-    { key: "email", label: "E-mail", type: "email", error: emailError },
-  ];
+  const latError = coordError(lat, 90);
+  const lngError = coordError(lng, 180);
+  const addressError = address.trim() ? undefined : "Indiquez l'adresse du salon";
+  const invalid = !!(latError || lngError || addressError);
+  const changed =
+    address.trim() !== salon.address || mapPoint.lat !== location.lat || mapPoint.lng !== location.lng;
+
+  const pick = (point: GeoPoint) => {
+    setLat(String(point.lat));
+    setLng(String(point.lng));
+    setMapPoint(point);
+  };
+
+  const typeCoord = (axis: keyof GeoPoint, value: string) => {
+    const nextLat = axis === "lat" ? value : lat;
+    const nextLng = axis === "lng" ? value : lng;
+    if (axis === "lat") setLat(value);
+    else setLng(value);
+    if (!coordError(nextLat, 90) && !coordError(nextLng, 180)) {
+      setMapPoint({ lat: parseCoord(nextLat), lng: parseCoord(nextLng) });
+    }
+  };
+
+  const locate = () => {
+    if (!navigator.geolocation) {
+      toast.error("La géolocalisation n'est pas disponible sur cet appareil");
+      return;
+    }
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => {
+        setLocating(false);
+        pick({ lat: Number(coords.latitude.toFixed(6)), lng: Number(coords.longitude.toFixed(6)) });
+      },
+      () => {
+        setLocating(false);
+        toast.error("Position introuvable", { description: "Autorisez la localisation ou placez le repère sur la carte." });
+      },
+      { enableHighAccuracy: true, timeout: 10000 },
+    );
+  };
 
   return (
     <AdminPanel className="flex flex-col gap-6">
       <div>
-        <AdminPanelTitle>Coordonnées du salon</AdminPanelTitle>
-        <p className="mt-1 font-sans text-sm text-taupe">Affichées dans le pied de page de toutes les pages.</p>
+        <AdminPanelTitle>Adresse et position du salon</AdminPanelTitle>
+        <p className="mt-1 font-sans text-sm text-taupe">
+          L&apos;adresse s&apos;affiche dans le pied de page, la position sert au lien « Itinéraire ». Saisissez la
+          latitude et la longitude, ou cliquez sur la carte et déplacez le repère.
+        </p>
       </div>
-      <div className="grid gap-4 md:grid-cols-3">
-        {fields.map((field) => (
-          <div key={field.key}>
-            <label htmlFor={`salon-${field.key}`} className={adminLabelClassName}>
-              {field.label}
-            </label>
-            <input
-              id={`salon-${field.key}`}
-              type={field.type}
-              value={draft[field.key]}
-              onChange={(e) => setDraft((d) => ({ ...d, [field.key]: e.target.value }))}
-              aria-invalid={!!field.error}
-              className={adminInputClassName}
-            />
-            <FieldError message={field.error} />
-          </div>
-        ))}
+
+      <div>
+        <label htmlFor="salon-address" className={adminLabelClassName}>
+          Adresse
+        </label>
+        <input
+          id="salon-address"
+          value={address}
+          onChange={(e) => setAddress(e.target.value)}
+          aria-invalid={!!addressError}
+          className={adminInputClassName}
+        />
+        <FieldError message={addressError} />
       </div>
-      <div className="flex justify-end">
+
+      <div className="grid gap-4 sm:grid-cols-[1fr_1fr_auto] sm:items-start">
+        <div>
+          <label htmlFor="salon-lat" className={adminLabelClassName}>
+            Latitude
+          </label>
+          <input
+            id="salon-lat"
+            inputMode="decimal"
+            value={lat}
+            onChange={(e) => typeCoord("lat", e.target.value)}
+            aria-invalid={!!latError}
+            placeholder="5.36"
+            className={adminInputClassName}
+          />
+          <FieldError message={latError} />
+        </div>
+        <div>
+          <label htmlFor="salon-lng" className={adminLabelClassName}>
+            Longitude
+          </label>
+          <input
+            id="salon-lng"
+            inputMode="decimal"
+            value={lng}
+            onChange={(e) => typeCoord("lng", e.target.value)}
+            aria-invalid={!!lngError}
+            placeholder="-4.0083"
+            className={adminInputClassName}
+          />
+          <FieldError message={lngError} />
+        </div>
         <button
           type="button"
-          disabled={!changed || !!(emailError || phoneError || addressError)}
-          onClick={() => {
-            setSalon({ address: draft.address.trim(), phone: draft.phone.trim(), email: draft.email.trim() });
-            toast.success("Coordonnées enregistrées");
-          }}
-          className={adminButtonClassName}
+          onClick={locate}
+          disabled={locating}
+          className={`${adminOutlineButtonClassName} sm:mt-7`}
         >
-          Enregistrer les coordonnées
+          <Crosshair className="size-4" strokeWidth={1.75} />
+          {locating ? "Localisation…" : "Ma position"}
         </button>
+      </div>
+
+      <LocationMap value={mapPoint} onChange={pick} />
+
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <a
+          href={`https://www.openstreetmap.org/?mlat=${mapPoint.lat}&mlon=${mapPoint.lng}#map=17/${mapPoint.lat}/${mapPoint.lng}`}
+          target="_blank"
+          rel="noreferrer"
+          className="font-sans text-sm text-cocoa underline underline-offset-4"
+        >
+          Voir sur OpenStreetMap
+        </a>
+        <div className="flex flex-wrap items-center gap-4">
+          {changed && <p className="font-sans text-sm text-taupe">Modifications non enregistrées</p>}
+          <button
+            type="button"
+            disabled={!changed || invalid}
+            onClick={() => {
+              setSalon({ address: address.trim() });
+              setLocation(mapPoint);
+              toast.success("Adresse et position enregistrées");
+            }}
+            className={adminButtonClassName}
+          >
+            Enregistrer
+          </button>
+        </div>
       </div>
     </AdminPanel>
   );
 };
+
+const settingsTabs = [
+  { value: "plateforme", label: "Plateforme" },
+  { value: "horaires", label: "Horaires et créneaux" },
+  { value: "reservation", label: "Réservation" },
+  { value: "fermetures", label: "Fermetures" },
+  { value: "salon", label: "Salon et position" },
+  { value: "livraison", label: "Livraisons et expéditions" },
+] as const;
 
 export const SettingsEditor = () => {
   const hydrated = useSettingsHydrated();
@@ -436,7 +562,7 @@ export const SettingsEditor = () => {
 
   return (
     <div className="flex flex-col gap-8">
-      <AdminPageHeader title="Réglages" description="Horaires, créneaux, règles de réservation et coordonnées du salon.">
+      <AdminPageHeader title="Réglages" description="Identité de la plateforme, horaires, créneaux, règles de réservation, position du salon et tarifs de livraison.">
         <button
           type="button"
           onClick={() => {
@@ -450,12 +576,42 @@ export const SettingsEditor = () => {
         </button>
       </AdminPageHeader>
 
-      <div key={version} className="flex flex-col gap-8">
-        <OpeningHours />
-        <BookingRulesForm />
-        <ClosedDates />
-        <SalonContactForm />
-      </div>
+      {/* forceMount : les brouillons non enregistrés survivent au changement d'onglet */}
+      <Tabs key={version} defaultValue="plateforme" className="flex-col gap-6">
+        <TabsList
+          variant="line"
+          aria-label="Catégories de réglages"
+          className="h-auto! w-full justify-start gap-2 overflow-x-auto overflow-y-hidden rounded-none border-b border-sand p-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        >
+          {settingsTabs.map((tab) => (
+            <TabsTrigger
+              key={tab.value}
+              value={tab.value}
+              className="mb-3 h-auto flex-none cursor-pointer rounded-full px-4 py-2 font-sans text-sm font-normal text-taupe after:hidden hover:text-cocoa focus-visible:border-transparent focus-visible:ring-0 focus-visible:outline-none data-[state=active]:bg-sand! data-[state=active]:text-cocoa"
+            >
+              {tab.label}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+        <TabsContent value="plateforme" forceMount className="flex flex-col gap-8 data-[state=inactive]:hidden">
+          <PlatformSettings />
+        </TabsContent>
+        <TabsContent value="horaires" forceMount className="data-[state=inactive]:hidden">
+          <OpeningHours />
+        </TabsContent>
+        <TabsContent value="reservation" forceMount className="data-[state=inactive]:hidden">
+          <BookingRulesForm />
+        </TabsContent>
+        <TabsContent value="fermetures" forceMount className="data-[state=inactive]:hidden">
+          <ClosedDates />
+        </TabsContent>
+        <TabsContent value="salon" forceMount className="data-[state=inactive]:hidden">
+          <SalonLocationForm />
+        </TabsContent>
+        <TabsContent value="livraison" forceMount className="data-[state=inactive]:hidden">
+          <ShippingSettingsForm />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };

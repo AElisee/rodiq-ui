@@ -1,4 +1,7 @@
 import type { ComponentProps, ReactNode } from "react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { orderStatusLabel, orderStatusMeta, type Order } from "@/lib/commandes";
+import type { StockLevel } from "@/lib/produits";
 import { statusMeta, type ReservationStatus } from "@/lib/reservations";
 import { cn } from "@/lib/utils";
 
@@ -23,7 +26,7 @@ export const adminInputClassName =
 export const adminTextareaClassName =
   "w-full rounded-[var(--radius)] border border-sand bg-pearl px-4 py-3 font-sans text-sm text-cocoa outline-none transition-colors placeholder:text-taupe focus-visible:border-taupe aria-invalid:border-destructive";
 
-export const adminLabelClassName = "mb-1.5 block font-sans text-sm text-cocoa";
+export const adminLabelClassName = "mb-1.5 block font-sans text-sm font-medium text-cocoa";
 
 // Puce de filtre (statut, période…)
 export const chipClassName = (active: boolean) =>
@@ -32,6 +35,41 @@ export const chipClassName = (active: boolean) =>
     active && "border-cocoa bg-sand",
   );
 
+// Liste déroulante de filtre ou de tri
+export const AdminSelect = <T extends string>({
+  value,
+  onValueChange,
+  options,
+  label,
+  className,
+}: {
+  value: T;
+  onValueChange: (value: T) => void;
+  options: { value: T; label: ReactNode }[];
+  label: string;
+  className?: string;
+}) => (
+  <Select value={value} onValueChange={(v) => onValueChange(v as T)}>
+    <SelectTrigger
+      aria-label={label}
+      className={cn(
+        "h-10 w-full justify-between rounded-full border-sand bg-pearl px-4 font-sans text-sm text-cocoa data-[size=default]:h-10",
+        className,
+      )}
+    >
+      <SelectValue />
+    </SelectTrigger>
+    <SelectContent position="popper" className="bg-pearl font-sans text-cocoa [&_[data-slot=select-item]]:py-2">
+      {options.map((option) => (
+        <SelectItem key={option.value} value={option.value}>
+          {option.label}
+        </SelectItem>
+      ))}
+    </SelectContent>
+  </Select>
+);
+
+// En-tête de page collé sous la barre du haut (h-14) : titre et actions restent visibles au défilement
 export const AdminPageHeader = ({
   title,
   description,
@@ -41,7 +79,7 @@ export const AdminPageHeader = ({
   description?: string;
   children?: ReactNode;
 }) => (
-  <header className="flex flex-col gap-4 border-b border-sand pb-6 sm:flex-row sm:items-end sm:justify-between">
+  <header className="sticky top-14 z-[5] -mt-6 flex flex-col gap-4 border-b border-sand bg-pearl pt-6 pb-6 sm:flex-row sm:items-end sm:justify-between">
     <div>
       <h1 className="font-serif text-[clamp(1.75rem,2.6vw,2.5rem)] leading-tight text-cocoa">{title}</h1>
       {description && <p className="mt-1 font-sans text-sm text-taupe">{description}</p>}
@@ -69,7 +107,40 @@ export const StatusBadge = ({ status }: { status: ReservationStatus }) => (
   </span>
 );
 
+// Statut d'une commande, libellé adapté au mode de remise (livraison ou retrait)
+export const OrderStatusBadge = ({ order }: { order: Pick<Order, "status" | "delivery"> }) => (
+  <span
+    className={cn(
+      "inline-flex rounded-full px-3 py-0.5 font-sans text-xs whitespace-nowrap",
+      orderStatusMeta[order.status].badgeClassName,
+    )}
+  >
+    {orderStatusLabel(order)}
+  </span>
+);
+
+const stockBadges: Record<Exclude<StockLevel, "ok">, { label: string; className: string }> = {
+  faible: { label: "Stock faible", className: "bg-gold text-cocoa" },
+  epuise: { label: "Épuisé", className: "border border-cocoa text-cocoa" },
+};
+
+// Alerte de stock (rien quand le stock est suffisant)
+export const StockBadge = ({ level }: { level: StockLevel }) =>
+  level === "ok" ? null : (
+    <span
+      className={cn(
+        "inline-flex rounded-full px-3 py-0.5 font-sans text-xs whitespace-nowrap",
+        stockBadges[level].className,
+      )}
+    >
+      {stockBadges[level].label}
+    </span>
+  );
+
 // Pagination simple (précédent / suivant)
+// Nombre de lignes par page dans les tableaux de l'admin
+export const ADMIN_PAGE_SIZE = 15;
+
 export const AdminPager = ({
   page,
   pageCount,

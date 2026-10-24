@@ -170,7 +170,7 @@ export const SignUpForm = () => {
           </div>
           <div>
             <label htmlFor="whatsapp" className={labelClassName}>
-              Numéro WhatsApp <span className="text-taupe">(facultatif)</span>
+              Numéro WhatsApp
             </label>
             <PhoneInput
               id="whatsapp"

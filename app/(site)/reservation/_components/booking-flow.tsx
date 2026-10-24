@@ -23,6 +23,7 @@ import {
   generateReference,
   getSlots,
   isActive,
+  toReservationLines,
   type Reservation,
 } from "@/lib/reservations";
 import {
@@ -175,7 +176,7 @@ export const BookingFlow = () => {
 
   const emailTaken = useAuthStore(selectEmailTaken(values.email));
 
-  // Places restantes = capacité du créneau - réservations actives
+  // Places restantes = capacité du créneau - réservations actives (null = illimité)
   const slots = useMemo<SlotAvailability[]>(() => {
     if (!reservationsHydrated || !settingsHydrated) return [];
     const taken = new Map<string, number>();
@@ -184,7 +185,7 @@ export const BookingFlow = () => {
     }
     return getSlots(schedule).map((slot) => ({
       ...slot,
-      remaining: Math.max(slot.capacity - (taken.get(slot.id) ?? 0), 0),
+      remaining: slot.capacity === null ? null : Math.max(slot.capacity - (taken.get(slot.id) ?? 0), 0),
     }));
   }, [reservationsHydrated, settingsHydrated, reservations, schedule]);
 
@@ -207,7 +208,7 @@ export const BookingFlow = () => {
   const selected = allPrestations.filter((p) => selectedIds.includes(p.id));
   const total = selected.reduce((sum, p) => sum + p.price, 0);
   const hasFromPrice = selected.some((p) => p.fromPrice);
-  const slot = slots.find((s) => s.id === slotId && s.remaining > 0);
+  const slot = slots.find((s) => s.id === slotId && s.remaining !== 0);
 
   // Ce qu'il reste à compléter avant de pouvoir envoyer la demande
   const missing = [
@@ -251,6 +252,7 @@ export const BookingFlow = () => {
       id: crypto.randomUUID(),
       reference: generateReference(),
       prestationIds: selected.map((p) => p.id),
+      lines: toReservationLines(selected),
       slotId: slot.id,
       date: slot.date,
       start: slot.start,
@@ -354,7 +356,7 @@ export const BookingFlow = () => {
             </div>
             <div>
               <label htmlFor="whatsapp" className={labelClassName}>
-                Numéro WhatsApp <span className="text-taupe">(facultatif)</span>
+                Numéro WhatsApp
               </label>
               <PhoneInput
                 id="whatsapp"
@@ -370,7 +372,7 @@ export const BookingFlow = () => {
             <div className="sm:col-span-2">
               <label htmlFor="email" className={labelClassName}>
                 E-mail
-                {emailRequired ? <Required /> : <span className="text-taupe"> (facultatif)</span>}
+                {emailRequired && <Required />}
               </label>
               <input
                 id="email"
@@ -409,7 +411,7 @@ export const BookingFlow = () => {
 
           <div className="mt-8">
             <label htmlFor="note" className={labelClassName}>
-              Une précision ? <span className="text-taupe">(facultatif)</span>
+              Une précision ?
             </label>
             <textarea
               id="note"

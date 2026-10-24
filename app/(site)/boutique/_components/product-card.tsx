@@ -6,25 +6,36 @@ import { Check, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { ProductVisual } from "@/components/shop/product-visual";
-import { getDiscountPercent, type Product } from "@/lib/produits";
+import {
+  DEFAULT_VARIANT_LABEL,
+  getDiscountPercent,
+  productMeasures,
+  productStock,
+  type Product,
+} from "@/lib/produits";
 import { formatPrice } from "@/lib/prestations";
-import { useCartStore } from "@/lib/stores/cart-store";
-import { useShopProduct } from "@/lib/stores/catalog-store";
+import { selectCartQuantity, useCartStore } from "@/lib/stores/cart-store";
 
 type ProductCardProps = {
+  // Produit avec les modifications de l'admin (useShopProducts)
   product: Product;
   // h3 quand la grille est placée sous un titre de section (fiche produit)
   headingAs?: "h2" | "h3";
 };
 
-export const ProductCard = ({ product: baseProduct, headingAs: Heading = "h2" }: ProductCardProps) => {
-  // Nom, prix et disponibilité modifiables depuis l'admin
-  const product = useShopProduct(baseProduct);
+export const ProductCard = ({ product, headingAs: Heading = "h2" }: ProductCardProps) => {
   const router = useRouter();
   const add = useCartStore((s) => s.add);
+  const inCart = useCartStore(selectCartQuantity(product.id));
+  const stock = productStock(product);
+  // Produit à déclinaisons : le choix se fait sur la fiche
+  const hasVariants = !!product.variants?.length;
+  const variantCount = product.variants?.length ?? 0;
+  const variantLabel = (product.variantLabel ?? DEFAULT_VARIANT_LABEL).toLowerCase();
   // Confirmation « ajouté » affichée brièvement après l'ajout
   const [added, setAdded] = useState(false);
   const discount = getDiscountPercent(product);
+  const measures = productMeasures(product);
 
   useEffect(() => {
     if (!added) return;
@@ -33,7 +44,7 @@ export const ProductCard = ({ product: baseProduct, headingAs: Heading = "h2" }:
   }, [added]);
 
   const handleAdd = () => {
-    add(product.id);
+    add(product.id, undefined, 1, stock);
     setAdded(true);
     toast.success(product.name, {
       description: "a été ajouté à votre panier",
@@ -83,31 +94,42 @@ export const ProductCard = ({ product: baseProduct, headingAs: Heading = "h2" }:
             {formatPrice(product.compareAtPrice!)}
           </s>
         )}
+        {measures.length > 0 && <span className="text-xs text-taupe">· {measures.join(" · ")}</span>}
       </p>
 
-      <button
-        type="button"
-        onClick={handleAdd}
-        disabled={product.soldOut}
-        aria-label={
-          product.soldOut ? `${product.name} épuisé` : `Ajouter ${product.name} au panier`
-        }
-        className="mt-auto inline-flex h-11 w-full items-center justify-center gap-2 rounded-full bg-blush px-4 font-sans text-sm text-cocoa transition-colors hover:bg-sand disabled:cursor-not-allowed disabled:bg-sand disabled:text-taupe"
-      >
-        {product.soldOut ? (
-          "Épuisé"
-        ) : added ? (
-          <>
-            <Check className="size-4" strokeWidth={1.75} />
-            Ajouté !
-          </>
-        ) : (
-          <>
-            <Plus className="size-4" strokeWidth={1.75} />
-            Ajouter au panier
-          </>
-        )}
-      </button>
+      {hasVariants && !product.soldOut ? (
+        <Link
+          href={`/boutique/${product.id}`}
+          className="mt-auto inline-flex h-11 w-full items-center justify-center gap-2 rounded-full bg-blush px-4 font-sans text-sm text-cocoa transition-colors hover:bg-sand"
+        >
+          Choisir · {variantCount} {variantLabel}
+          {variantCount > 1 && "s"}
+        </Link>
+      ) : (
+        <button
+          type="button"
+          onClick={handleAdd}
+          disabled={product.soldOut || inCart >= stock}
+          aria-label={
+            product.soldOut ? `${product.name} épuisé` : `Ajouter ${product.name} au panier`
+          }
+          className="mt-auto inline-flex h-11 w-full items-center justify-center gap-2 rounded-full bg-blush px-4 font-sans text-sm text-cocoa transition-colors hover:bg-sand disabled:cursor-not-allowed disabled:bg-sand disabled:text-taupe"
+        >
+          {product.soldOut ? (
+            "Épuisé"
+          ) : added ? (
+            <>
+              <Check className="size-4" strokeWidth={1.75} />
+              Ajouté !
+            </>
+          ) : (
+            <>
+              <Plus className="size-4" strokeWidth={1.75} />
+              Ajouter au panier
+            </>
+          )}
+        </button>
+      )}
     </article>
   );
 };

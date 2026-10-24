@@ -12,3 +12,7 @@ export const mainNav: NavLink[] = [
   // { label: "Contact", href: "/contact" },
   { label: "Boutique", href: "/boutique" },
 ];
+
+// Lien actif : correspondance exacte pour l'accueil, par préfixe pour les sections
+export const isNavActive = (href: string, pathname: string) =>
+  href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`);

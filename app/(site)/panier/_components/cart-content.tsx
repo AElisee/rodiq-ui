@@ -4,11 +4,9 @@ import Link from "next/link";
 import { Minus, Plus, X } from "lucide-react";
 import { ProductVisual } from "@/components/shop/product-visual";
 import { formatPrice } from "@/lib/prestations";
-import { productCategories } from "@/lib/produits";
-import { useShopProducts } from "@/lib/stores/catalog-store";
-import { useCartHydrated, useCartStore } from "@/lib/stores/cart-store";
-
-const categoryNames = new Map(productCategories.map((c) => [c.id, c.name]));
+import { productMeasures } from "@/lib/produits";
+import { useProductCategoryNames, useShopProducts } from "@/lib/stores/catalog-store";
+import { resolveCartLines, useCartHydrated, useCartStore } from "@/lib/stores/cart-store";
 
 // Lignes du panier et récapitulatif de commande
 export const CartContent = () => {
@@ -18,15 +16,13 @@ export const CartContent = () => {
   const remove = useCartStore((s) => s.remove);
   const clear = useCartStore((s) => s.clear);
   const products = useShopProducts();
+  const categoryNames = useProductCategoryNames();
 
   // Le panier est relu depuis le navigateur : rien à afficher côté serveur
   if (!hydrated) return <div className="min-h-64" aria-hidden />;
 
   // Ignore les produits retirés du catalogue depuis l'ajout au panier
-  const lines = items.flatMap((item) => {
-    const product = products.find((p) => p.id === item.id);
-    return product ? [{ product, quantity: item.quantity }] : [];
-  });
+  const lines = resolveCartLines(items, products);
 
   if (lines.length === 0) {
     return (
@@ -67,8 +63,8 @@ export const CartContent = () => {
         </div>
 
         <ul className="divide-y divide-sand">
-          {lines.map(({ product, quantity }) => (
-            <li key={product.id} className="flex gap-4 py-6 sm:gap-6">
+          {lines.map(({ key, product, variant, quantity, stock }) => (
+            <li key={key} className="flex gap-4 py-6 sm:gap-6">
               <div className="relative aspect-[4/5] w-24 shrink-0 overflow-hidden rounded-[var(--radius)] bg-sand sm:w-28">
                 <ProductVisual product={product} sizes="112px" iconClassName="size-7" />
               </div>
@@ -80,12 +76,23 @@ export const CartContent = () => {
                       {product.name}
                     </h2>
                     <p className="mt-1 font-sans text-sm text-taupe">
-                      {categoryNames.get(product.categoryId)} · {formatPrice(product.price)}
+                      {[
+                        variant ? variant.name : categoryNames.get(product.categoryId),
+                        ...productMeasures(product),
+                        formatPrice(product.price),
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
                     </p>
+                    {quantity > stock && (
+                      <p className="mt-1 font-sans text-sm text-cocoa">
+                        {stock > 0 ? `Plus que ${stock} en stock : réduisez la quantité.` : "Épuisé : retirez cet article."}
+                      </p>
+                    )}
                   </div>
                   <button
                     type="button"
-                    onClick={() => remove(product.id)}
+                    onClick={() => remove(key)}
                     aria-label={`Retirer ${product.name} du panier`}
                     className="shrink-0 text-taupe transition-colors hover:text-cocoa"
                   >
@@ -97,7 +104,7 @@ export const CartContent = () => {
                   <div className="inline-flex h-10 items-center rounded-full border border-sand font-sans text-cocoa">
                     <button
                       type="button"
-                      onClick={() => setQuantity(product.id, quantity - 1)}
+                      onClick={() => setQuantity(key, quantity - 1)}
                       disabled={quantity === 1}
                       aria-label={`Diminuer la quantité de ${product.name}`}
                       className="inline-flex size-10 items-center justify-center rounded-full transition-colors hover:bg-sand disabled:pointer-events-none disabled:text-sand"
@@ -109,9 +116,10 @@ export const CartContent = () => {
                     </span>
                     <button
                       type="button"
-                      onClick={() => setQuantity(product.id, quantity + 1)}
+                      onClick={() => setQuantity(key, quantity + 1)}
+                      disabled={quantity >= stock}
                       aria-label={`Augmenter la quantité de ${product.name}`}
-                      className="inline-flex size-10 items-center justify-center rounded-full transition-colors hover:bg-sand"
+                      className="inline-flex size-10 items-center justify-center rounded-full transition-colors hover:bg-sand disabled:pointer-events-none disabled:text-sand"
                     >
                       <Plus className="size-4" strokeWidth={1.75} />
                     </button>

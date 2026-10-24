@@ -9,7 +9,9 @@ import {
   cancellationDeadline,
   formatDay,
   formatSlotTime,
+  hasFromPrice,
   isActive,
+  reservationTotal,
   statusMeta,
   type Reservation,
 } from "@/lib/reservations";
@@ -26,15 +28,15 @@ export const ReservationCard = ({ reservation }: { reservation: Reservation }) =
   const allPrestations = useAllPrestations();
   const noticeDays = useSettingsStore((s) => s.rules.cancellationNoticeDays);
 
-  const prestations = allPrestations.filter((p) => reservation.prestationIds.includes(p.id));
-  const total = prestations.reduce((sum, p) => sum + p.price, 0);
+  // Prestations et prix figés au moment de la demande
+  const lines = reservation.lines;
   const status = statusMeta[reservation.status];
   const deadline = format(cancellationDeadline(reservation, noticeDays), "d MMMM", { locale: fr });
 
-  // Reprend les mêmes prestations pour une nouvelle réservation
+  // Reprend les mêmes prestations (encore proposées) pour une nouvelle réservation
   const bookAgain = () => {
     clear();
-    prestations.forEach((p) => toggle(p.id));
+    allPrestations.filter((p) => reservation.prestationIds.includes(p.id)).forEach((p) => toggle(p.id));
     router.push("/reservation");
   };
 
@@ -55,16 +57,16 @@ export const ReservationCard = ({ reservation }: { reservation: Reservation }) =
       </header>
 
       <ul className="mt-6 flex flex-col gap-2 border-t border-sand pt-6 font-sans text-sm text-cocoa">
-        {prestations.map((p) => (
-          <li key={p.id} className="flex justify-between gap-4">
-            <span>{p.name}</span>
-            <span className="whitespace-nowrap">{formatPrice(p.price, p.fromPrice)}</span>
+        {lines.map((line) => (
+          <li key={line.prestationId} className="flex justify-between gap-4">
+            <span>{line.name}</span>
+            <span className="whitespace-nowrap">{formatPrice(line.price, line.fromPrice)}</span>
           </li>
         ))}
         <li className="flex justify-between gap-4 pt-2 font-serif text-base">
           <span>Total estimé</span>
           <span className="font-sans">
-            {formatPrice(total, prestations.some((p) => p.fromPrice))}
+            {formatPrice(reservationTotal(reservation), hasFromPrice(reservation))}
           </span>
         </li>
       </ul>

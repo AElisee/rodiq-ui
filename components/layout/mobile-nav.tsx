@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { LogOut } from "lucide-react";
 import { useState } from "react";
 import {
@@ -11,11 +12,13 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { useSignOut } from "@/components/layout/account-link";
-import { mainNav } from "@/lib/navigation";
+import { isNavActive, mainNav } from "@/lib/navigation";
+import { cn } from "@/lib/utils";
 import { selectCurrentAccount, useAuthHydrated, useAuthStore } from "@/lib/stores/auth-store";
 
 export const MobileNav = () => {
   const [open, setOpen] = useState(false);
+  const pathname = usePathname();
   const hydrated = useAuthHydrated();
   const account = useAuthStore(selectCurrentAccount);
   const signOut = useSignOut();
@@ -39,17 +42,24 @@ export const MobileNav = () => {
         <SheetDescription className="sr-only">
           Navigation principale du site Rodiq
         </SheetDescription>
-        <nav className="flex flex-col gap-6">
-          {mainNav.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              onClick={close}
-              className="text-3xl text-cocoa"
-            >
-              {link.label}
-            </Link>
-          ))}
+        <nav className="flex flex-col gap-4">
+          {mainNav.map((link) => {
+            const active = isNavActive(link.href, pathname);
+            return (
+              <Link
+                key={link.href}
+                href={link.href}
+                onClick={close}
+                aria-current={active ? "page" : undefined}
+                className={cn(
+                  "-mx-4 rounded-full px-4 py-1 text-3xl text-cocoa transition-colors",
+                  active && "bg-sand"
+                )}
+              >
+                {link.label}
+              </Link>
+            );
+          })}
         </nav>
         <Link
           href="/reservation"
@@ -71,6 +81,13 @@ export const MobileNav = () => {
                   className="mt-3 block font-sans text-base text-cocoa underline-offset-4 hover:underline"
                 >
                   Mes réservations
+                </Link>
+                <Link
+                  href="/commande/mes-commandes"
+                  onClick={close}
+                  className="mt-2 block font-sans text-base text-cocoa underline-offset-4 hover:underline"
+                >
+                  Mes commandes
                 </Link>
                 <button
                   type="button"

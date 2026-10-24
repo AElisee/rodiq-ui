@@ -47,7 +47,7 @@ export const CancelDialog = ({ reservation }: { reservation: Reservation }) => {
         </DialogDescription>
 
         <label htmlFor={`reason-${reservation.id}`} className="mt-6 mb-2 block text-sm">
-          Motif <span className="text-taupe">(facultatif)</span>
+          Motif
         </label>
         <textarea
           id={`reason-${reservation.id}`}

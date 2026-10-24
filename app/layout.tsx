@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { archivo, geistMono, playfair } from "@/lib/fonts";
+import { NumberWheelGuard } from "@/components/layout/number-wheel-guard";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -17,7 +18,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       data-scroll-behavior="smooth"
       className={`${playfair.variable} ${archivo.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        <NumberWheelGuard />
+        {children}
+      </body>
     </html>
   );
 }

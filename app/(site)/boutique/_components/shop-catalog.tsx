@@ -1,6 +1,7 @@
 "use client";
 
 import { Search, X } from "lucide-react";
+import { useSearchParams } from "next/navigation";
 import { useDeferredValue, useRef, useState } from "react";
 import {
   Select,
@@ -9,8 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { productCategories } from "@/lib/produits";
-import { useShopProducts } from "@/lib/stores/catalog-store";
+import { useProductCategories, useShopProducts } from "@/lib/stores/catalog-store";
 import { cn } from "@/lib/utils";
 import { Pagination } from "./pagination";
 import { ProductCard } from "./product-card";
@@ -31,13 +31,19 @@ const normalize = (text: string) =>
 
 // Filtres (catégorie, recherche, tri par prix) et grille des produits
 export const ShopCatalog = () => {
-  const [categoryId, setCategoryId] = useState<string | null>(null);
+  // Catégorie choisie depuis une fiche produit (/boutique?categorie=…)
+  const [selectedCategoryId, setCategoryId] = useState<string | null>(useSearchParams().get("categorie"));
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortOrder>("default");
   const [page, setPage] = useState(1);
   const deferredQuery = useDeferredValue(query);
   const catalogRef = useRef<HTMLDivElement>(null);
   const products = useShopProducts();
+  const categories = useProductCategories();
+
+  // Catégories dans l'ordre choisi dans l'admin, sans celles qui n'ont aucun produit visible
+  const shownCategories = categories.filter((c) => products.some((p) => p.categoryId === c.id));
+  const categoryId = shownCategories.some((c) => c.id === selectedCategoryId) ? selectedCategoryId : null;
 
   const search = normalize(deferredQuery);
   const filtered = products
@@ -78,7 +84,7 @@ export const ShopCatalog = () => {
     changeQuery("");
   };
 
-  const categoryButtons = [{ id: null, name: "Tout" }, ...productCategories];
+  const categoryButtons = [{ id: null, name: "Tout" }, ...shownCategories];
 
   return (
     <div ref={catalogRef} className="mt-10 scroll-mt-32 md:mt-12">

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Image from "next/image";
+import { Suspense } from "react";
 import bannerImage from "@/public/images/boutique.jpg";
 import { ShopCatalog } from "./_components/shop-catalog";
 
@@ -36,7 +37,10 @@ const BoutiquePage = () => (
           pieds entre deux rendez-vous.
         </p>
 
-        <ShopCatalog />
+        {/* Suspense : la catégorie de départ se lit dans l'URL (?categorie=…) */}
+        <Suspense fallback={<div className="mt-10 min-h-96 md:mt-12" aria-hidden />}>
+          <ShopCatalog />
+        </Suspense>
       </div>
     </section>
   </>

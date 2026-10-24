@@ -9,7 +9,7 @@ import {
   startOfWeek,
 } from "date-fns";
 import { fr } from "date-fns/locale";
-import type { Prestation } from "@/lib/prestations";
+import { orderTotal, type Order } from "@/lib/commandes";
 import type { Reservation, ReservationStatus } from "@/lib/reservations";
 
 export type StatsPeriod = "jour" | "semaine" | "mois";
@@ -27,6 +27,9 @@ export type StatsPoint = {
   title: string;
   visitors: number;
   reservations: number;
+  // Commandes de la boutique reçues (hors annulées) et leur montant
+  orders: number;
+  orderAmount: number;
 };
 
 // Tranches de temps se terminant aujourd'hui, de la plus ancienne à la plus récente
@@ -67,18 +70,22 @@ const buckets = (period: StatsPeriod, now: Date) => {
   });
 };
 
-// Visiteurs et réservations reçues (date de la demande) par jour, semaine ou mois
+// Visiteurs, réservations et commandes reçues (date de la demande) par jour, semaine ou mois
 export const buildStats = (
   period: StatsPeriod,
   status: ReservationStatus | null,
   reservations: Reservation[],
   visits: Record<string, number>,
+  orders: Order[],
   now = new Date(),
 ): StatsPoint[] => {
   const visitDays = Object.entries(visits).map(([day, count]) => ({ time: parseISO(day).getTime(), count }));
   const requests = reservations
     .filter((r) => !status || r.status === status)
     .map((r) => new Date(r.createdAt).getTime());
+  const sales = orders
+    .filter((o) => o.status !== "annulee")
+    .map((o) => ({ time: new Date(o.createdAt).getTime(), amount: orderTotal(o) }));
 
   return buckets(period, now).map(({ start, end, label, title }) => {
     const from = start.getTime();
@@ -89,12 +96,10 @@ export const buildStats = (
       title,
       visitors: visitDays.reduce((sum, v) => (v.time >= from && v.time < to ? sum + v.count : sum), 0),
       reservations: requests.filter((t) => t >= from && t < to).length,
+      ...sales.reduce(
+        (acc, o) => (o.time >= from && o.time < to ? { orders: acc.orders + 1, orderAmount: acc.orderAmount + o.amount } : acc),
+        { orders: 0, orderAmount: 0 },
+      ),
     };
   });
 };
-
-// Montant estimé d'une réservation (prix d'appel pour les tarifs « dès »)
-export const reservationTotal = (reservation: Reservation, prestations: Prestation[]) =>
-  prestations
-    .filter((p) => reservation.prestationIds.includes(p.id))
-    .reduce((sum, p) => sum + p.price, 0);

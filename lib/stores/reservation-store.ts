@@ -2,7 +2,8 @@ import { addDays, format } from "date-fns";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { generateDemoReservations } from "@/lib/demo-data";
-import type { Reservation } from "@/lib/reservations";
+import { allPrestations } from "@/lib/prestations";
+import { toReservationLines, type Reservation } from "@/lib/reservations";
 import { createHydrationHook } from "./hydration";
 
 type ReservationState = {
@@ -13,6 +14,8 @@ type ReservationState = {
   confirm: (id: string) => void;
   reject: (id: string, reason: string) => void;
   complete: (id: string) => void;
+  // Rattache à un compte les réservations faites sans compte avec cette adresse e-mail
+  claim: (accountId: string, email: string) => void;
 };
 
 // Données de démonstration : un historique avec chaque statut traité par l'admin
@@ -28,6 +31,10 @@ const demoReservations: Reservation[] = [
     id: "demo-3",
     reference: "RDQ-H9XC3B",
     prestationIds: ["vernis-permanent-mains", "pose-pieds"],
+    lines: [
+      { prestationId: "vernis-permanent-mains", name: "Vernis permanent mains", price: 5000 },
+      { prestationId: "pose-pieds", name: "Pose pieds", price: 4000 },
+    ],
     slotId: `${day(9)}_11:00`,
     date: day(9),
     start: "11:00",
@@ -42,6 +49,7 @@ const demoReservations: Reservation[] = [
     id: "demo-1",
     reference: "RDQ-7KH2PM",
     prestationIds: ["pedicure-manucure"],
+    lines: [{ prestationId: "pedicure-manucure", name: "Pédicure + manucure", price: 8000 }],
     slotId: `${day(-24)}_14:00`,
     date: day(-24),
     start: "14:00",
@@ -56,6 +64,7 @@ const demoReservations: Reservation[] = [
     id: "demo-2",
     reference: "RDQ-Q4WN8T",
     prestationIds: ["tresses"],
+    lines: [{ prestationId: "tresses", name: "Tresses", price: 15000, fromPrice: true }],
     slotId: `${day(-10)}_09:00`,
     date: day(-10),
     start: "09:00",
@@ -93,14 +102,26 @@ export const useReservationStore = create<ReservationState>()(
           reservations: setStatus(s.reservations, id, { status: "refusee", rejectionReason: reason }),
         })),
       complete: (id) => set((s) => ({ reservations: setStatus(s.reservations, id, { status: "terminee" }) })),
+      claim: (accountId, email) =>
+        set((s) => ({
+          reservations: s.reservations.map((r) =>
+            !r.accountId && r.client.email?.toLowerCase() === email ? { ...r, accountId } : r,
+          ),
+        })),
     }),
     {
       name: "rodiq-reservations",
       // v1 : ajout des réservations des autres clientes pour l'admin
-      version: 1,
+      // v2 : prestations et prix figés dans chaque réservation (lines)
+      version: 2,
       migrate: (persisted, version) => {
         const state = persisted as Pick<ReservationState, "reservations">;
         if (version < 1) state.reservations = [...state.reservations, ...generateDemoReservations()];
+        if (version < 2) {
+          state.reservations = state.reservations.map((r) =>
+            r.lines ? r : { ...r, lines: toReservationLines(allPrestations.filter((p) => r.prestationIds.includes(p.id))) },
+          );
+        }
         return state as ReservationState;
       },
       storage: createJSONStorage(() => localStorage),

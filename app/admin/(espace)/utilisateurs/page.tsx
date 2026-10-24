@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { UsersList } from "./_components/users-list";
 
 export const metadata: Metadata = {
-  title: "Clientes",
+  title: "Clientèle",
 };
 
 const AdminUsersPage = () => <UsersList />;

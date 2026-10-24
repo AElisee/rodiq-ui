@@ -73,7 +73,7 @@ export const RejectDialog = ({ reservation }: { reservation: Reservation }) => {
         </div>
 
         <label htmlFor={`reject-${reservation.id}`} className={`mt-6 ${adminLabelClassName}`}>
-          Motif transmis à la cliente *
+          Motif transmis au client ou à la cliente *
         </label>
         <textarea
           id={`reject-${reservation.id}`}

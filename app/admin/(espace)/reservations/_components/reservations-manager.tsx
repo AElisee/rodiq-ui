@@ -1,46 +1,54 @@
 "use client";
 
+import Link from "next/link";
 import { Search } from "lucide-react";
 import { useDeferredValue, useState } from "react";
-import { toast } from "sonner";
 import {
+  ADMIN_PAGE_SIZE,
   AdminPageHeader,
   AdminPager,
+  AdminSelect,
   StatusBadge,
   adminInputClassName,
-  adminSmallButtonClassName,
   adminSmallOutlineButtonClassName,
-  chipClassName,
   normalizeSearch,
 } from "@/components/admin/admin-ui";
+import { detailLinkClassName } from "@/components/admin/admin-detail";
+import { AdminExportButtons, type ExportTable } from "@/components/admin/admin-export";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { reservationTotal } from "@/lib/admin-stats";
 import { formatPrice } from "@/lib/prestations";
 import {
   contactChannels,
   formatDay,
   formatSlotTime,
+  hasFromPrice,
+  reservationTotal,
   statusMeta,
   toDateKey,
   type Reservation,
   type ReservationStatus,
 } from "@/lib/reservations";
-import { useAllPrestations } from "@/lib/stores/catalog-store";
 import { useReservationStore, useReservationsHydrated } from "@/lib/stores/reservation-store";
-import { RejectDialog } from "./reject-dialog";
-import { ReservationDetails } from "./reservation-details";
-
-const PAGE_SIZE = 20;
+import { ReservationActions } from "./reservation-actions";
 
 type When = "a-venir" | "passees" | "toutes";
 
 const whenFilters: { value: When; label: string }[] = [
-  { value: "a-venir", label: "À venir" },
-  { value: "passees", label: "Passées" },
   { value: "toutes", label: "Toutes les dates" },
+  { value: "passees", label: "Passées" },
+  { value: "a-venir", label: "À venir" },
 ];
 
-const statusFilters: { value: ReservationStatus | null; label: string }[] = [
+type SortOrder = "date-asc" | "date-desc" | "demande" | "nom";
+
+const sortOptions: { value: SortOrder; label: string }[] = [
+  { value: "date-asc", label: "Rendez-vous les plus proches" },
+  { value: "date-desc", label: "Rendez-vous les plus récents" },
+  { value: "demande", label: "Demandes récentes" },
+  { value: "nom", label: "Nom" },
+];
+
+const statusFilters:{ value: ReservationStatus | null; label: string }[] = [
   { value: null, label: "Tous les statuts" },
   ...(Object.keys(statusMeta) as ReservationStatus[]).map((value) => ({
     value,
@@ -52,11 +60,9 @@ const statusFilters: { value: ReservationStatus | null; label: string }[] = [
 export const ReservationsManager = () => {
   const hydrated = useReservationsHydrated();
   const reservations = useReservationStore((s) => s.reservations);
-  const confirm = useReservationStore((s) => s.confirm);
-  const complete = useReservationStore((s) => s.complete);
-  const prestations = useAllPrestations();
   const [status, setStatus] = useState<ReservationStatus | null>("en_attente");
   const [when, setWhen] = useState<When>("a-venir");
+  const [sort, setSort] = useState<SortOrder>("date-asc");
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
   const search = normalizeSearch(useDeferredValue(query));
@@ -76,29 +82,39 @@ export const ReservationsManager = () => {
   const count = (value: ReservationStatus | null) =>
     value ? base.filter((r) => r.status === value).length : base.length;
 
-  // À venir : les plus proches d'abord ; sinon les plus récentes d'abord
+  const slotKey = (r: Reservation) => `${r.date} ${r.start}`;
   const filtered = base
     .filter((r) => !status || r.status === status)
     .toSorted((a, b) => {
-      const order = `${a.date} ${a.start}`.localeCompare(`${b.date} ${b.start}`);
-      return when === "a-venir" ? order : -order;
+      if (sort === "date-desc") return slotKey(b).localeCompare(slotKey(a));
+      if (sort === "demande") return b.createdAt.localeCompare(a.createdAt);
+      if (sort === "nom")
+        return `${a.client.lastName} ${a.client.firstName}`.localeCompare(`${b.client.lastName} ${b.client.firstName}`, "fr");
+      return slotKey(a).localeCompare(slotKey(b));
     });
 
-  const pageCount = Math.ceil(filtered.length / PAGE_SIZE);
+  const exportTable: ExportTable = {
+    title: "Réservations",
+    filename: "reservations",
+    headers: ["Référence", "Date", "Horaire", "Client(e)", "Téléphone", "E-mail", "Contact", "Prestations", "Montant (FCFA)", "Statut", "Note"],
+    rows: filtered.map((r) => [
+      r.reference,
+      r.date,
+      formatSlotTime(r.start, r.end),
+      `${r.client.firstName} ${r.client.lastName}`,
+      r.client.phone,
+      r.client.email ?? "",
+      contactChannels.find((c) => c.value === r.client.contactChannel)?.label ?? "",
+      r.lines.map((line) => line.name).join(", "),
+      reservationTotal(r),
+      statusMeta[r.status].label,
+      r.note ?? "",
+    ]),
+  };
+
+  const pageCount = Math.ceil(filtered.length / ADMIN_PAGE_SIZE);
   const currentPage = Math.min(page, Math.max(pageCount, 1));
-  const visible = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
-
-  const handleConfirm = (r: Reservation) => {
-    confirm(r.id);
-    toast.success("Réservation confirmée", {
-      description: `${r.client.firstName} ${r.client.lastName} · ${formatSlotTime(r.start, r.end)}`,
-    });
-  };
-
-  const handleComplete = (r: Reservation) => {
-    complete(r.id);
-    toast.success("Soin marqué comme terminé", { description: `${r.client.firstName} ${r.client.lastName}` });
-  };
+  const visible = filtered.slice((currentPage - 1) * ADMIN_PAGE_SIZE, currentPage * ADMIN_PAGE_SIZE);
 
   const resetPage = <T,>(setter: (value: T) => void) => (value: T) => {
     setter(value);
@@ -110,11 +126,13 @@ export const ReservationsManager = () => {
       <AdminPageHeader
         title="Réservations"
         description="Confirmez ou refusez les demandes, puis marquez les soins terminés."
-      />
+      >
+        <AdminExportButtons table={exportTable} />
+      </AdminPageHeader>
 
       <div className="flex flex-col gap-4">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="relative w-full lg:max-w-sm">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+          <div className="relative w-full xl:max-w-sm">
             <Search className="pointer-events-none absolute top-1/2 left-4 size-4 -translate-y-1/2 text-taupe" strokeWidth={1.75} aria-hidden />
             <input
               type="search"
@@ -125,33 +143,32 @@ export const ReservationsManager = () => {
               className={`${adminInputClassName} pl-10`}
             />
           </div>
-          <div role="group" aria-label="Dates" className="flex flex-wrap gap-2">
-            {whenFilters.map((filter) => (
-              <button
-                key={filter.value}
-                type="button"
-                onClick={() => resetPage(setWhen)(filter.value)}
-                aria-pressed={when === filter.value}
-                className={chipClassName(when === filter.value)}
-              >
-                {filter.label}
-              </button>
-            ))}
+          <div className="grid gap-3 sm:grid-cols-3 xl:w-auto">
+            <AdminSelect
+              label="Dates"
+              value={when}
+              onValueChange={resetPage(setWhen)}
+              options={whenFilters}
+              className="xl:w-44"
+            />
+            <AdminSelect
+              label="Filtrer par statut"
+              value={status ?? "all"}
+              onValueChange={(v) => resetPage(setStatus)(v === "all" ? null : (v as ReservationStatus))}
+              options={statusFilters.map((filter) => ({
+                value: filter.value ?? "all",
+                label: `${filter.label} (${count(filter.value)})`,
+              }))}
+              className="xl:w-52"
+            />
+            <AdminSelect
+              label="Trier par"
+              value={sort}
+              onValueChange={resetPage(setSort)}
+              options={sortOptions}
+              className="xl:w-56"
+            />
           </div>
-        </div>
-
-        <div role="group" aria-label="Filtrer par statut" className="flex flex-wrap gap-2">
-          {statusFilters.map((filter) => (
-            <button
-              key={filter.value ?? "all"}
-              type="button"
-              onClick={() => resetPage(setStatus)(filter.value)}
-              aria-pressed={status === filter.value}
-              className={chipClassName(status === filter.value)}
-            >
-              {filter.label} <span className="text-taupe">({count(filter.value)})</span>
-            </button>
-          ))}
         </div>
       </div>
 
@@ -161,19 +178,19 @@ export const ReservationsManager = () => {
             <Table className="font-sans text-cocoa">
               <TableHeader>
                 <TableRow className="border-sand hover:bg-transparent">
+                  <TableHead className="w-12 px-4 text-right text-taupe">#</TableHead>
                   <TableHead className="px-4 text-taupe">Rendez-vous</TableHead>
-                  <TableHead className="px-4 text-taupe">Cliente</TableHead>
+                  <TableHead className="px-4 text-taupe">Client(e)</TableHead>
                   <TableHead className="px-4 text-taupe">Prestations</TableHead>
                   <TableHead className="px-4 text-taupe">Statut</TableHead>
                   <TableHead className="px-4 text-right text-taupe">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {visible.map((r) => {
-                  const items = prestations.filter((p) => r.prestationIds.includes(p.id));
-                  const isPast = r.date < today;
+                {visible.map((r, index) => {
                   return (
                     <TableRow key={r.id} className="border-sand hover:bg-transparent">
+                      <TableCell className="px-4 py-3 text-right align-top text-taupe tabular-nums">{(currentPage - 1) * ADMIN_PAGE_SIZE + index + 1}</TableCell>
                       <TableCell className="px-4 py-3 align-top">
                         <p className="first-letter:uppercase">
                           {formatDay(r.date)}
@@ -194,9 +211,9 @@ export const ReservationsManager = () => {
                         </p>
                       </TableCell>
                       <TableCell className="max-w-64 px-4 py-3 align-top whitespace-normal">
-                        <p>{items.map((p) => p.name).join(", ")}</p>
+                        <p>{r.lines.map((line) => line.name).join(", ")}</p>
                         <p className="text-xs text-taupe">
-                          {formatPrice(reservationTotal(r, prestations), items.some((p) => p.fromPrice))}
+                          {formatPrice(reservationTotal(r), hasFromPrice(r))}
                         </p>
                       </TableCell>
                       <TableCell className="px-4 py-3 align-top">
@@ -204,23 +221,10 @@ export const ReservationsManager = () => {
                       </TableCell>
                       <TableCell className="px-4 py-3 align-top">
                         <div className="flex flex-wrap items-center justify-end gap-2">
-                          {r.status === "en_attente" && (
-                            <>
-                              <button type="button" onClick={() => handleConfirm(r)} className={adminSmallButtonClassName}>
-                                Confirmer
-                              </button>
-                              <RejectDialog reservation={r} />
-                            </>
-                          )}
-                          {r.status === "confirmee" &&
-                            (isPast || r.date === today ? (
-                              <button type="button" onClick={() => handleComplete(r)} className={adminSmallButtonClassName}>
-                                Soin terminé
-                              </button>
-                            ) : (
-                              <RejectDialog reservation={r} />
-                            ))}
-                          <ReservationDetails reservation={r} prestations={prestations} />
+                          <ReservationActions reservation={r} />
+                          <Link href={`/admin/reservations/${r.id}`} className={detailLinkClassName}>
+                            Détails
+                          </Link>
                         </div>
                       </TableCell>
                     </TableRow>

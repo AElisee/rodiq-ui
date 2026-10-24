@@ -1,13 +1,13 @@
-import Image, { type StaticImageData } from "next/image";
+import Image from "next/image";
 import { Gem } from "lucide-react";
-import type { Product } from "@/lib/produits";
+import type { Product, ProductImage } from "@/lib/produits";
 import { cn } from "@/lib/utils";
 
 type ProductVisualProps = {
   product: Product;
   sizes: string;
   // Photo à afficher (galerie de la fiche produit) ; par défaut la photo principale
-  image?: StaticImageData;
+  image?: ProductImage;
   alt?: string;
   preload?: boolean;
   iconClassName?: string;
@@ -28,7 +28,9 @@ export const ProductVisual = ({
       alt={alt}
       fill
       preload={preload}
-      placeholder="blur"
+      // Photos ajoutées depuis l'admin (data URL) : ni optimisation ni aperçu flou
+      placeholder={typeof image === "string" ? "empty" : "blur"}
+      unoptimized={typeof image === "string"}
       sizes={sizes}
       className="object-cover transition-transform duration-500 hover:scale-105"
     />

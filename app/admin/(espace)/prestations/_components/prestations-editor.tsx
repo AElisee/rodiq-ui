@@ -21,8 +21,15 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { formatPrice, type Prestation, type PrestationCategory } from "@/lib/prestations";
-import { useCatalogHydrated, useCatalogStore } from "@/lib/stores/catalog-store";
+import {
+  formatPrice,
+  type Prestation,
+  type PrestationCategory,
+} from "@/lib/prestations";
+import {
+  useCatalogHydrated,
+  useCatalogStore,
+} from "@/lib/stores/catalog-store";
 
 const slugify = (text: string) =>
   text
@@ -40,19 +47,30 @@ type PrestationFormProps = {
 };
 
 // Ajout ou modification d'une prestation (nom, tarif, catégorie)
-const PrestationForm = ({ categories, categoryId: initialCategoryId, prestation, trigger }: PrestationFormProps) => {
+const PrestationForm = ({
+  categories,
+  categoryId: initialCategoryId,
+  prestation,
+  trigger,
+}: PrestationFormProps) => {
   const savePrestation = useCatalogStore((s) => s.savePrestation);
   const [open, setOpen] = useState(false);
   const [name, setName] = useState(prestation?.name ?? "");
-  const [price, setPrice] = useState(prestation ? String(prestation.price) : "");
+  const [price, setPrice] = useState(
+    prestation ? String(prestation.price) : "",
+  );
   const [fromPrice, setFromPrice] = useState(prestation?.fromPrice ?? false);
   const [note, setNote] = useState(prestation?.note ?? "");
   const [categoryId, setCategoryId] = useState(initialCategoryId);
   const [submitted, setSubmitted] = useState(false);
 
   const priceValue = Number(price);
-  const nameError = name.trim().length < 2 ? "Indiquez le nom de la prestation" : undefined;
-  const priceError = !price || !Number.isInteger(priceValue) || priceValue <= 0 ? "Indiquez un prix en FCFA" : undefined;
+  const nameError =
+    name.trim().length < 2 ? "Indiquez le nom de la prestation" : undefined;
+  const priceError =
+    !price || !Number.isInteger(priceValue) || priceValue <= 0
+      ? "Indiquez un prix en FCFA"
+      : undefined;
 
   const reset = () => {
     setName(prestation?.name ?? "");
@@ -69,14 +87,17 @@ const PrestationForm = ({ categories, categoryId: initialCategoryId, prestation,
     if (nameError || priceError) return;
 
     savePrestation(categoryId, {
-      id: prestation?.id ?? `${slugify(name)}-${crypto.randomUUID().slice(0, 4)}`,
+      id:
+        prestation?.id ?? `${slugify(name)}-${crypto.randomUUID().slice(0, 4)}`,
       name: name.trim(),
       price: priceValue,
       fromPrice: fromPrice || undefined,
       note: note.trim() || undefined,
     });
     setOpen(false);
-    toast.success(prestation ? "Prestation modifiée" : "Prestation ajoutée", { description: name.trim() });
+    toast.success(prestation ? "Prestation modifiée" : "Prestation ajoutée", {
+      description: name.trim(),
+    });
     if (!prestation) reset();
   };
 
@@ -130,7 +151,10 @@ const PrestationForm = ({ categories, categoryId: initialCategoryId, prestation,
               {submitted && <FieldError message={priceError} />}
             </div>
             <div>
-              <label htmlFor="prestation-category" className={adminLabelClassName}>
+              <label
+                htmlFor="prestation-category"
+                className={adminLabelClassName}
+              >
                 Catégorie
               </label>
               <select
@@ -158,7 +182,7 @@ const PrestationForm = ({ categories, categoryId: initialCategoryId, prestation,
           </label>
           <div>
             <label htmlFor="prestation-note" className={adminLabelClassName}>
-              Précision <span className="text-taupe">(facultatif)</span>
+              Précision
             </label>
             <input
               id="prestation-note"
@@ -171,11 +195,17 @@ const PrestationForm = ({ categories, categoryId: initialCategoryId, prestation,
 
           <div className="mt-4 flex flex-col-reverse items-center gap-4 sm:flex-row sm:justify-end">
             <DialogClose asChild>
-              <button type="button" className="text-sm underline-offset-4 hover:underline">
+              <button
+                type="button"
+                className="text-sm underline-offset-4 hover:underline"
+              >
                 Annuler
               </button>
             </DialogClose>
-            <button type="submit" className={`w-full sm:w-auto ${adminButtonClassName}`}>
+            <button
+              type="submit"
+              className={`w-full sm:w-auto ${adminButtonClassName}`}
+            >
               Enregistrer
             </button>
           </div>
@@ -200,13 +230,19 @@ const DeletePrestation = ({ prestation }: { prestation: Prestation }) => {
         </button>
       </DialogTrigger>
       <DialogContent className="gap-0 rounded-[var(--radius)] bg-pearl p-6 font-sans text-cocoa sm:max-w-md md:p-8">
-        <DialogTitle className="font-serif text-xl leading-tight font-normal">Supprimer « {prestation.name} » ?</DialogTitle>
+        <DialogTitle className="font-serif text-xl leading-tight font-normal">
+          Supprimer « {prestation.name} » ?
+        </DialogTitle>
         <DialogDescription className="mt-3 text-sm text-taupe">
-          La prestation ne sera plus proposée à la réservation. Les réservations existantes sont conservées.
+          La prestation ne sera plus proposée à la réservation. Les réservations
+          existantes sont conservées.
         </DialogDescription>
         <div className="mt-8 flex flex-col-reverse items-center gap-4 sm:flex-row sm:justify-end">
           <DialogClose asChild>
-            <button type="button" className="text-sm underline-offset-4 hover:underline">
+            <button
+              type="button"
+              className="text-sm underline-offset-4 hover:underline"
+            >
               Annuler
             </button>
           </DialogClose>
@@ -240,13 +276,19 @@ const CategoryHeader = ({ category }: { category: PrestationCategory }) => {
       onSubmit={(e) => {
         e.preventDefault();
         if (!name.trim()) return;
-        updateCategory(category.id, { name: name.trim(), tagline: tagline.trim() });
+        updateCategory(category.id, {
+          name: name.trim(),
+          tagline: tagline.trim(),
+        });
         toast.success("Catégorie enregistrée", { description: name.trim() });
       }}
       className="grid gap-3 sm:grid-cols-[1fr_1.5fr_auto] sm:items-end"
     >
       <div>
-        <label htmlFor={`category-name-${category.id}`} className={adminLabelClassName}>
+        <label
+          htmlFor={`category-name-${category.id}`}
+          className={adminLabelClassName}
+        >
           Catégorie
         </label>
         <input
@@ -257,7 +299,10 @@ const CategoryHeader = ({ category }: { category: PrestationCategory }) => {
         />
       </div>
       <div>
-        <label htmlFor={`category-tagline-${category.id}`} className={adminLabelClassName}>
+        <label
+          htmlFor={`category-tagline-${category.id}`}
+          className={adminLabelClassName}
+        >
           Accroche
         </label>
         <input
@@ -267,7 +312,11 @@ const CategoryHeader = ({ category }: { category: PrestationCategory }) => {
           className={adminInputClassName}
         />
       </div>
-      <button type="submit" disabled={!changed || !name.trim()} className={adminOutlineButtonClassName}>
+      <button
+        type="submit"
+        disabled={!changed || !name.trim()}
+        className={adminOutlineButtonClassName}
+      >
         Enregistrer
       </button>
     </form>
@@ -288,58 +337,73 @@ export const PrestationsEditor = () => {
         description="Catégories, prestations et tarifs affichés sur le site et proposés à la réservation."
       />
 
-      {categories.map((category) => (
-        <AdminPanel key={category.id} className="flex flex-col gap-5">
-          <CategoryHeader key={`${category.name}|${category.tagline}`} category={category} />
+      <div className="mx-auto flex w-full max-w-3xl flex-col gap-8">
+        {categories.map((category) => (
+          <AdminPanel key={category.id} className="flex flex-col gap-5">
+            <CategoryHeader
+              key={`${category.name}|${category.tagline}`}
+              category={category}
+            />
 
-          {category.prestations.length > 0 ? (
-            <ul className="divide-y divide-sand border-y border-sand font-sans text-sm text-cocoa">
-              {category.prestations.map((prestation) => (
-                <li key={prestation.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
-                  <div className="min-w-0">
-                    <p>{prestation.name}</p>
-                    {prestation.note && <p className="text-xs text-taupe">{prestation.note}</p>}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="mr-2 whitespace-nowrap">{formatPrice(prestation.price, prestation.fromPrice)}</span>
-                    <PrestationForm
-                      key={JSON.stringify(prestation)}
-                      categories={categories}
-                      categoryId={category.id}
-                      prestation={prestation}
-                      trigger={
-                        <button
-                          type="button"
-                          aria-label={`Modifier ${prestation.name}`}
-                          className="inline-flex size-8 items-center justify-center rounded-full text-taupe transition-colors hover:bg-sand hover:text-cocoa"
-                        >
-                          <Pencil className="size-4" strokeWidth={1.75} />
-                        </button>
-                      }
-                    />
-                    <DeletePrestation prestation={prestation} />
-                  </div>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="border-y border-sand py-4 font-sans text-sm text-taupe">
-              Aucune prestation : la catégorie est masquée sur le site.
-            </p>
-          )}
+            {category.prestations.length > 0 ? (
+              <ul className="divide-y divide-sand border-y border-sand font-sans text-sm text-cocoa">
+                {category.prestations.map((prestation) => (
+                  <li
+                    key={prestation.id}
+                    className="flex flex-wrap items-center justify-between gap-3 py-3"
+                  >
+                    <div className="min-w-0">
+                      <p>{prestation.name}</p>
+                      {prestation.note && (
+                        <p className="text-xs text-taupe">{prestation.note}</p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="mr-2 whitespace-nowrap">
+                        {formatPrice(prestation.price, prestation.fromPrice)}
+                      </span>
+                      <PrestationForm
+                        key={JSON.stringify(prestation)}
+                        categories={categories}
+                        categoryId={category.id}
+                        prestation={prestation}
+                        trigger={
+                          <button
+                            type="button"
+                            aria-label={`Modifier ${prestation.name}`}
+                            className="inline-flex size-8 items-center justify-center rounded-full text-taupe transition-colors hover:bg-sand hover:text-cocoa"
+                          >
+                            <Pencil className="size-4" strokeWidth={1.75} />
+                          </button>
+                        }
+                      />
+                      <DeletePrestation prestation={prestation} />
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="border-y border-sand py-4 font-sans text-sm text-taupe">
+                Aucune prestation : la catégorie est masquée sur le site.
+              </p>
+            )}
 
-          <PrestationForm
-            categories={categories}
-            categoryId={category.id}
-            trigger={
-              <button type="button" className={`self-start ${adminSmallOutlineButtonClassName}`}>
-                <Plus className="size-3.5" strokeWidth={1.75} />
-                Ajouter une prestation
-              </button>
-            }
-          />
-        </AdminPanel>
-      ))}
+            <PrestationForm
+              categories={categories}
+              categoryId={category.id}
+              trigger={
+                <button
+                  type="button"
+                  className={`self-start ${adminSmallOutlineButtonClassName}`}
+                >
+                  <Plus className="size-3.5" strokeWidth={1.75} />
+                  Ajouter une prestation
+                </button>
+              }
+            />
+          </AdminPanel>
+        ))}
+      </div>
     </div>
   );
 };

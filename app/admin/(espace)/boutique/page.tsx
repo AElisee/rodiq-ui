@@ -1,10 +1,6 @@
-import type { Metadata } from "next";
-import { ProductsEditor } from "./_components/products-editor";
+import { redirect } from "next/navigation";
 
-export const metadata: Metadata = {
-  title: "Boutique",
-};
-
-const AdminBoutiquePage = () => <ProductsEditor />;
+// La boutique se gère par sous-menus : liste des produits par défaut
+const AdminBoutiquePage = () => redirect("/admin/boutique/produits");
 
 export default AdminBoutiquePage;

@@ -1,6 +1,8 @@
 import { addDays, format, startOfDay } from "date-fns";
-import { prestationCategories } from "@/lib/prestations";
-import { daySlotTimes, type Reservation, type ReservationStatus } from "@/lib/reservations";
+import { deliveryZones, type Order, type OrderLine, type OrderStatus } from "@/lib/commandes";
+import { allPrestations } from "@/lib/prestations";
+import { products } from "@/lib/produits";
+import { daySlotTimes, toReservationLines, type Reservation, type ReservationStatus } from "@/lib/reservations";
 import type { Account } from "@/lib/stores/auth-store";
 import { defaultSettings } from "@/lib/stores/settings-store";
 
@@ -44,8 +46,6 @@ export const demoClientAccounts: Account[] = people.map(([firstName, lastName, p
   createdAt: addDays(new Date(), -100 + i * 11).toISOString(),
 }));
 
-const prestationIds = prestationCategories.flatMap((c) => c.prestations.map((p) => p.id));
-
 const pastStatus = (r: number): ReservationStatus =>
   r < 0.75 ? "terminee" : r < 0.88 ? "annulee" : "refusee";
 const futureStatus = (r: number): ReservationStatus => (r < 0.55 ? "confirmee" : "en_attente");
@@ -65,20 +65,24 @@ export const generateDemoReservations = (now = new Date()): Reservation[] => {
     const day = addDays(today, offset);
     const date = format(day, "yyyy-MM-dd");
     const times = daySlotTimes(defaultSettings.week[day.getDay()], defaultSettings.slotMinutes);
+    // Capacité illimitée : on simule comme pour 2 places
+    const capacity = defaultSettings.slotCapacity ?? 2;
 
     for (const { start, end } of times) {
       // Une place sur deux est prise en moyenne, jamais plus que la capacité
-      const count = Math.floor(random() * (defaultSettings.slotCapacity + 0.6));
-      for (let n = 0; n < Math.min(count, defaultSettings.slotCapacity); n++) {
+      const count = Math.floor(random() * (capacity + 0.6));
+      for (let n = 0; n < Math.min(count, capacity); n++) {
         const account = demoClientAccounts[Math.floor(random() * demoClientAccounts.length)];
         const status = offset < 0 ? pastStatus(random()) : futureStatus(random());
-        const picked = [prestationIds[Math.floor(random() * prestationIds.length)]];
-        if (random() < 0.3) picked.push(prestationIds[Math.floor(random() * prestationIds.length)]);
+        const picked = [allPrestations[Math.floor(random() * allPrestations.length)]];
+        if (random() < 0.3) picked.push(allPrestations[Math.floor(random() * allPrestations.length)]);
+        const prestations = [...new Set(picked)];
 
         reservations.push({
           id: `seed-${date}-${start}-${n}`,
           reference: `RDQ-${Math.floor(random() * 0xffffff).toString(36).toUpperCase().padStart(6, "X")}`,
-          prestationIds: [...new Set(picked)],
+          prestationIds: prestations.map((p) => p.id),
+          lines: toReservationLines(prestations),
           slotId: `${date}_${start}`,
           date,
           start,
@@ -101,6 +105,82 @@ export const generateDemoReservations = (now = new Date()): Reservation[] => {
     }
   }
   return reservations;
+};
+
+const streets = ["Rue des Jardins", "Boulevard Latrille", "Rue du Commerce", "Allée des Flamboyants", "Rue Pierre et Marie Curie"];
+
+const orderNotes = ["Merci d'appeler avant de passer.", "Paquet cadeau si possible.", "Disponible après 17h."];
+
+const cancellationReasons = [
+  "Produit en rupture de stock : commande remboursée.",
+  "Annulée à la demande du client ou de la cliente.",
+  "Injoignable pour confirmer la livraison.",
+];
+
+// Statut selon l'ancienneté de la commande (en jours)
+const orderStatus = (age: number, r: number): OrderStatus => {
+  if (age >= 7) return r < 0.88 ? "livree" : "annulee";
+  if (age >= 3) return r < 0.55 ? "livree" : r < 0.8 ? "prete" : r < 0.93 ? "en_preparation" : "annulee";
+  if (age >= 1) return r < 0.35 ? "prete" : r < 0.75 ? "en_preparation" : "en_attente";
+  return r < 0.7 ? "en_attente" : "en_preparation";
+};
+
+// Commandes de la boutique sur les 90 derniers jours, certaines passées sans compte client
+export const generateDemoOrders = (now = new Date()): Order[] => {
+  const random = seeded(77);
+  const today = startOfDay(now);
+  const pick = <T>(list: readonly T[]) => list[Math.floor(random() * list.length)];
+  const orders: Order[] = [];
+
+  for (let age = 90; age >= 0; age--) {
+    const day = addDays(today, -age);
+    const count = Math.floor(random() * 3.2);
+
+    for (let n = 0; n < count; n++) {
+      const guest = random() < 0.3;
+      const account = pick(demoClientAccounts);
+      const lines: OrderLine[] = [];
+      for (let i = 0, total = 1 + Math.floor(random() * 3); i < total; i++) {
+        const product = pick(products.filter((p) => !p.soldOut));
+        if (lines.some((l) => l.productId === product.id)) continue;
+        lines.push({
+          productId: product.id,
+          name: product.name,
+          unitPrice: product.price,
+          quantity: random() < 0.8 ? 1 : 2,
+        });
+      }
+
+      const pickup = random() < 0.35;
+      const { place: commune, fee } = pick(deliveryZones);
+      const paymentMethod = random() < 0.6 ? "mobile_money" : "especes";
+      const status = orderStatus(age, random());
+      const createdAt = new Date(day.getTime() + (8 + random() * 12) * 3_600_000);
+
+      orders.push({
+        id: `seed-order-${format(day, "yyyy-MM-dd")}-${n}`,
+        reference: `CMD-${Math.floor(random() * 0xffffff).toString(36).toUpperCase().padStart(6, "X")}`,
+        lines,
+        customer: guest
+          ? { firstName: account.firstName, lastName: account.lastName, phone: account.phone }
+          : { firstName: account.firstName, lastName: account.lastName, phone: account.phone, email: account.email },
+        delivery: pickup
+          ? { mode: "retrait" }
+          : { mode: "livraison", commune, address: `${pick(streets)}, ${commune}` },
+        deliveryFee: pickup ? 0 : fee,
+        paymentMethod,
+        // Mobile Money : payé à la commande ; espèces : encaissé à la remise
+        paid: paymentMethod === "mobile_money" ? status !== "annulee" || random() < 0.5 : status === "livree",
+        note: random() < 0.15 ? pick(orderNotes) : undefined,
+        status,
+        cancellationReason: status === "annulee" ? pick(cancellationReasons) : undefined,
+        accountId: guest ? undefined : account.id,
+        createdAt: createdAt.toISOString(),
+        updatedAt: status === "en_attente" ? undefined : addDays(createdAt, Math.min(age, 2)).toISOString(),
+      });
+    }
+  }
+  return orders.reverse();
 };
 
 // Visites des 365 derniers jours : plus de monde en fin de semaine, légère progression

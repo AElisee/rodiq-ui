@@ -1,7 +1,9 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { demoClientAccounts } from "@/lib/demo-data";
-import { createHydrationHook } from "./hydration";
+import { createHydrationHook, ensureHydrated } from "./hydration";
+import { useOrderStore } from "./order-store";
+import { useReservationStore } from "./reservation-store";
 
 export type Account = {
   id: string;
@@ -30,6 +32,13 @@ const normalizeEmail = (email: string) => email.trim().toLowerCase();
 const hashPassword = async (password: string) => {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(password));
   return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
+};
+
+// Historique passé sans compte (même e-mail) rattaché au nouveau compte.
+const linkGuestHistory = async (accountId: string, email: string) => {
+  await Promise.all([ensureHydrated(useReservationStore), ensureHydrated(useOrderStore)]);
+  useReservationStore.getState().claim(accountId, email);
+  useOrderStore.getState().claim(accountId, email);
 };
 
 // Compte de démonstration : aicha.kone@exemple.ci / rodiq2026
@@ -62,6 +71,7 @@ export const useAuthStore = create<AuthState>()(
           createdAt: new Date().toISOString(),
         };
         set((s) => ({ accounts: [...s.accounts, account], currentAccountId: account.id }));
+        await linkGuestHistory(account.id, email);
         return { ok: true };
       },
       signIn: async (email, password) => {

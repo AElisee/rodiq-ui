@@ -24,3 +24,8 @@ export const createHydrationHook = (store: { persist?: PersistApi }) => {
     return hydrated;
   };
 };
+
+// Relit un store avant de le modifier hors de son écran : sinon la relecture tardive écraserait la modification
+export const ensureHydrated = async (store: { persist?: PersistApi }) => {
+  if (store.persist && !store.persist.hasHydrated()) await store.persist.rehydrate();
+};

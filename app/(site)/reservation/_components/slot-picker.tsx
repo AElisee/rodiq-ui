@@ -5,7 +5,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { formatDay, formatSlotTime, toDateKey, type Slot } from "@/lib/reservations";
 import { cn } from "@/lib/utils";
 
-export type SlotAvailability = Slot & { remaining: number };
+export type SlotAvailability = Slot & { remaining: number | null }; // null = illimité
 
 type SlotPickerProps = {
   slots: SlotAvailability[];
@@ -17,7 +17,7 @@ type SlotPickerProps = {
 
 // Étape 2 : choix du jour puis du créneau ; seuls les créneaux avec une place libre sont réservables
 export const SlotPicker = ({ slots, day, onDayChange, slotId, onSlotChange }: SlotPickerProps) => {
-  const availableDays = new Set(slots.filter((s) => s.remaining > 0).map((s) => s.date));
+  const availableDays = new Set(slots.filter((s) => s.remaining !== 0).map((s) => s.date));
   const daySlots = slots.filter((s) => s.date === day);
 
   if (availableDays.size === 0) {
@@ -70,7 +70,9 @@ export const SlotPicker = ({ slots, day, onDayChange, slotId, onSlotChange }: Sl
                       <span className="text-sm text-taupe">
                         {full
                           ? "Complet"
-                          : `${slot.remaining} place${slot.remaining > 1 ? "s" : ""} disponible${slot.remaining > 1 ? "s" : ""}`}
+                          : slot.remaining === null
+                            ? "Places disponibles"
+                            : `${slot.remaining} place${slot.remaining > 1 ? "s" : ""} disponible${slot.remaining > 1 ? "s" : ""}`}
                       </span>
                     </button>
                   </li>

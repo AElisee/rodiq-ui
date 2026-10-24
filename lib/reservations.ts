@@ -1,9 +1,10 @@
 import { addDays, differenceInCalendarDays, format, isAfter, parse, startOfDay } from "date-fns";
 import { fr } from "date-fns/locale";
+import type { Prestation } from "@/lib/prestations";
 
 // Cycle de vie d'une réservation :
 // en_attente → confirmee → terminee
-//            ↘ refusee (motif obligatoire, côté admin)
+// en_attente / confirmee (à venir) → refusee (motif obligatoire, côté admin)
 // en_attente / confirmee → annulee (par la cliente, dans le délai autorisé)
 export type ReservationStatus = "en_attente" | "confirmee" | "refusee" | "annulee" | "terminee";
 
@@ -18,11 +19,20 @@ export type ReservationClient = {
   contactChannel: ContactChannel;
 };
 
+// Prestation figée au moment de la demande (le catalogue peut changer ensuite)
+export type ReservationLine = {
+  prestationId: string;
+  name: string;
+  price: number; // FCFA
+  fromPrice?: boolean;
+};
+
 export type Reservation = {
   id: string;
   // Référence courte communiquée à la cliente (téléphone, SMS…)
   reference: string;
   prestationIds: string[];
+  lines: ReservationLine[];
   slotId: string;
   date: string; // yyyy-MM-dd
   start: string; // HH:mm
@@ -44,7 +54,7 @@ export type Slot = {
   date: string; // yyyy-MM-dd
   start: string; // HH:mm
   end: string; // HH:mm
-  capacity: number;
+  capacity: number | null; // null = places illimitées
 };
 
 // Règles de réservation réglées par l'admin (voir lib/stores/settings-store.ts)
@@ -73,7 +83,8 @@ export type Schedule = {
   // Index 0 = dimanche … 6 = samedi (comme Date.getDay())
   week: DayHours[];
   slotMinutes: number;
-  slotCapacity: number;
+  // null = places illimitées
+  slotCapacity: number | null;
   closedDates: ClosedDate[];
 };
 
@@ -95,7 +106,8 @@ export const statusMeta: Record<
   },
   refusee: {
     label: "Refusée",
-    description: "Votre demande n'a pas pu être acceptée.",
+    // Refus d'une demande, ou rendez-vous confirmé puis annulé par le salon
+    description: "Le salon n'a pas pu accepter ou maintenir ce rendez-vous.",
     badgeClassName: "bg-gold text-cocoa",
   },
   annulee: {
@@ -116,6 +128,16 @@ export const contactChannels: { value: ContactChannel; label: string }[] = [
   { value: "sms", label: "SMS" },
   { value: "email", label: "E-mail" },
 ];
+
+export const toReservationLines = (prestations: Prestation[]): ReservationLine[] =>
+  prestations.map(({ id, name, price, fromPrice }) => ({ prestationId: id, name, price, fromPrice }));
+
+// Montant estimé d'une réservation (prix d'appel pour les tarifs « dès »)
+export const reservationTotal = (reservation: Pick<Reservation, "lines">) =>
+  reservation.lines.reduce((sum, line) => sum + line.price, 0);
+
+export const hasFromPrice = (reservation: Pick<Reservation, "lines">) =>
+  reservation.lines.some((line) => line.fromPrice);
 
 // Une réservation active occupe une place sur son créneau
 export const isActive = (status: ReservationStatus) =>

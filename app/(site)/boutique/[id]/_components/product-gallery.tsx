@@ -62,7 +62,7 @@ export const ProductGallery = ({ product, children }: ProductGalleryProps) => {
       {hasMany && (
         <ul aria-label="Photos du produit" className="grid grid-cols-5 gap-3">
           {images.map((image, i) => (
-            <li key={image.src}>
+            <li key={i}>
               <button
                 type="button"
                 onClick={() => setIndex(i)}
