@@ -40,8 +40,6 @@ export type Product = {
   images?: ProductImage[];
   // Déclinaisons : le stock est alors suivi par déclinaison
   variants?: ProductVariant[];
-  // Nom du choix proposé (« Teinte », « Contenance »…)
-  variantLabel?: string;
   // Quantité restante d'un produit sans déclinaison
   stock?: number;
   // Alerte « stock faible » dans l'admin à partir de cette quantité restante
@@ -53,7 +51,7 @@ export type Product = {
 // Stock de départ des produits du catalogue qui n'en précisent pas
 export const DEFAULT_STOCK = 10;
 export const DEFAULT_LOW_STOCK_THRESHOLD = 3;
-export const DEFAULT_VARIANT_LABEL = "Déclinaison";
+export const VARIANT_LABEL = "Variant";
 
 export const formatMeasure = ({ value, unit }: Measure) => `${value.toLocaleString("fr-FR")} ${unit}`;
 

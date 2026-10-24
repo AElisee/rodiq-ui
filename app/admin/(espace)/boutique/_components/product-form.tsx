@@ -25,7 +25,6 @@ import { resizeImage } from "@/lib/images";
 import {
   CAPACITY_UNITS,
   DEFAULT_LOW_STOCK_THRESHOLD,
-  DEFAULT_VARIANT_LABEL,
   WEIGHT_UNITS,
   type Measure,
   type ProductImage,
@@ -127,8 +126,9 @@ export const ProductFormFields = ({ product, sold, onDone, onCancel }: ProductFo
 
   const [name, setName] = useState(product?.name ?? "");
   const [categoryId, setCategoryId] = useState(product?.categoryId ?? categories[0]?.id ?? "");
-  const [price, setPrice] = useState(product ? String(product.price) : "");
-  const [compareAtPrice, setCompareAtPrice] = useState(product?.compareAtPrice ? String(product.compareAtPrice) : "");
+  // Saisie : prix d'origine puis prix promo ; stockage : price = prix payé, compareAtPrice = prix barré
+  const [price, setPrice] = useState(product ? String(product.compareAtPrice ?? product.price) : "");
+  const [promoPrice, setPromoPrice] = useState(product?.compareAtPrice ? String(product.price) : "");
   const [description, setDescription] = useState(product?.description ?? "");
   const [capacity, setCapacity] = useState(product?.capacity ? String(product.capacity.value) : "");
   const [capacityUnit, setCapacityUnit] = useState(product?.capacity?.unit ?? CAPACITY_UNITS[0]);
@@ -136,7 +136,6 @@ export const ProductFormFields = ({ product, sold, onDone, onCancel }: ProductFo
   const [weightUnit, setWeightUnit] = useState(product?.weight?.unit ?? WEIGHT_UNITS[0]);
   const [images, setImages] = useState<ProductImage[]>(product?.images ?? []);
   const [hasVariants, setHasVariants] = useState(!!product?.variants?.length);
-  const [variantLabel, setVariantLabel] = useState(product?.variantLabel ?? "");
   const [variants, setVariants] = useState<VariantRow[]>(
     product?.variants?.length
       ? product.variants.map((v) => ({ id: v.id, name: v.name, stock: String(v.stock) }))
@@ -151,26 +150,26 @@ export const ProductFormFields = ({ product, sold, onDone, onCancel }: ProductFo
   const [submitted, setSubmitted] = useState(false);
 
   const priceValue = Number(price);
-  const compareValue = Number(compareAtPrice);
+  const promoValue = Number(promoPrice);
   const variantNames = variants.map((v) => v.name.trim().toLowerCase());
   const errors = {
     name: name.trim().length < 2 ? "Indiquez le nom du produit" : undefined,
     category: !categories.some((c) => c.id === categoryId) ? "Choisissez une catégorie" : undefined,
     price: !price || !Number.isInteger(priceValue) || priceValue <= 0 ? "Indiquez un prix en FCFA" : undefined,
-    compareAtPrice:
-      compareAtPrice && (!Number.isInteger(compareValue) || compareValue <= priceValue)
-        ? "Le prix d'origine doit être supérieur au prix de vente"
+    promoPrice:
+      promoPrice && (!Number.isInteger(promoValue) || promoValue <= 0 || promoValue >= priceValue)
+        ? "Le prix promotionnel doit être inférieur au prix d'origine"
         : undefined,
     capacity: !isMeasure(capacity) ? "Indiquez une contenance supérieure à 0" : undefined,
     weight: !isMeasure(weight) ? "Indiquez un poids supérieur à 0" : undefined,
     stock: !hasVariants && !isCount(stock) ? "Indiquez la quantité en stock" : undefined,
     variants:
       hasVariants && variants.length === 0
-        ? "Ajoutez au moins une déclinaison"
+        ? "Ajoutez au moins un variant"
         : hasVariants && variants.some((v) => !v.name.trim() || !isCount(v.stock))
-          ? "Chaque déclinaison a un nom et une quantité en stock"
+          ? "Chaque variant a un nom et une quantité en stock"
           : hasVariants && new Set(variantNames).size < variantNames.length
-            ? "Deux déclinaisons portent le même nom"
+            ? "Deux variants portent le même nom"
             : undefined,
     threshold: !isCount(threshold) ? "Indiquez un seuil (0 pour aucune alerte avant rupture)" : undefined,
   };
@@ -204,8 +203,8 @@ export const ProductFormFields = ({ product, sold, onDone, onCancel }: ProductFo
       id,
       name: name.trim(),
       categoryId,
-      price: priceValue,
-      compareAtPrice: compareAtPrice ? compareValue : undefined,
+      price: promoPrice ? promoValue : priceValue,
+      compareAtPrice: promoPrice ? priceValue : undefined,
       description: description.trim() || undefined,
       capacity: toMeasure(capacity, capacityUnit),
       weight: toMeasure(weight, weightUnit),
@@ -213,7 +212,6 @@ export const ProductFormFields = ({ product, sold, onDone, onCancel }: ProductFo
       variants: hasVariants
         ? variants.map((v) => ({ id: v.id, name: v.name.trim(), stock: Number(v.stock) }))
         : undefined,
-      variantLabel: hasVariants && variantLabel.trim() ? variantLabel.trim() : undefined,
       stock: hasVariants ? 0 : Number(stock),
       lowStockThreshold: Number(threshold),
       hidden,
@@ -255,7 +253,7 @@ export const ProductFormFields = ({ product, sold, onDone, onCancel }: ProductFo
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
           <label htmlFor="product-price" className={adminLabelClassName}>
-            Prix de vente (FCFA) *
+            Prix d&apos;origine (FCFA) *
           </label>
           <NumberInput
             id="product-price"
@@ -267,18 +265,18 @@ export const ProductFormFields = ({ product, sold, onDone, onCancel }: ProductFo
           {submitted && <FieldError message={errors.price} />}
         </div>
         <div>
-          <label htmlFor="product-compare" className={adminLabelClassName}>
-            Prix d&apos;origine <span className="text-taupe">(promotion)</span>
+          <label htmlFor="product-promo" className={adminLabelClassName}>
+            Prix promotionnel (FCFA)
           </label>
           <NumberInput
-            id="product-compare"
+            id="product-promo"
             step={500}
-            value={compareAtPrice}
-            onChange={setCompareAtPrice}
+            value={promoPrice}
+            onChange={setPromoPrice}
             placeholder="Aucune promotion"
-            invalid={submitted && !!errors.compareAtPrice}
+            invalid={submitted && !!errors.promoPrice}
           />
-          {submitted && <FieldError message={errors.compareAtPrice} />}
+          {submitted && <FieldError message={errors.promoPrice} />}
         </div>
       </div>
       <div>
@@ -399,53 +397,43 @@ export const ProductFormFields = ({ product, sold, onDone, onCancel }: ProductFo
           onChange={(e) => setHasVariants(e.target.checked)}
           className="size-4 accent-cocoa"
         />
-        Ce produit existe en plusieurs déclinaisons (teinte, contenance…)
+        Ce produit a plusieurs variants (teinte, contenance…)
       </label>
 
       {hasVariants ? (
         <div className="flex flex-col gap-3">
-          <div>
-            <label htmlFor="product-variant-label" className={adminLabelClassName}>
-              Nom du choix <span className="text-taupe">(affiché sur la fiche)</span>
-            </label>
-            <input
-              id="product-variant-label"
-              value={variantLabel}
-              onChange={(e) => setVariantLabel(e.target.value)}
-              placeholder={`${DEFAULT_VARIANT_LABEL}, Teinte, Contenance…`}
-              className={adminInputClassName}
-            />
-          </div>
-          <div className="grid grid-cols-[1fr_6rem_2rem] items-center gap-x-3 gap-y-2 text-sm">
-            <span className="text-taupe">Déclinaison</span>
+          <div className="grid grid-cols-[auto_1fr_6rem_2rem] items-center gap-x-3 gap-y-2 text-sm">
+            <span />
+            <span className="text-taupe">Nom</span>
             <span className="text-taupe">Quantité</span>
             <span />
             {variants.map((v, i) => (
               <div key={v.id} className="contents">
+                <span className="text-taupe">Variant {i + 1}</span>
                 <input
                   value={v.name}
                   onChange={(e) => updateVariant(v.id, { name: e.target.value })}
                   placeholder={i === 0 ? "Ex. Nude rosé" : undefined}
-                  aria-label={`Nom de la déclinaison ${i + 1}`}
+                  aria-label={`Nom du variant ${i + 1}`}
                   aria-invalid={submitted && !v.name.trim()}
                   className={adminInputClassName}
                 />
                 <NumberInput
                   value={v.stock}
                   onChange={(value) => updateVariant(v.id, { stock: value })}
-                  label={`Quantité en stock de la déclinaison ${i + 1}`}
+                  label={`Quantité en stock du variant ${i + 1}`}
                   invalid={submitted && !isCount(v.stock)}
                 />
                 <button
                   type="button"
                   onClick={() => setVariants((rows) => rows.filter((row) => row.id !== v.id))}
-                  aria-label={`Supprimer la déclinaison ${i + 1}`}
+                  aria-label={`Supprimer le variant ${i + 1}`}
                   className="inline-flex size-8 items-center justify-center rounded-full text-taupe transition-colors hover:bg-sand hover:text-cocoa"
                 >
                   <Trash2 className="size-4" strokeWidth={1.75} />
                 </button>
                 {product && soldFor(v.id) > 0 && (
-                  <p className="col-span-3 -mt-1 text-xs text-taupe">{soldFor(v.id)} vendu(s)</p>
+                  <p className="col-span-3 col-start-2 -mt-1 text-xs text-taupe">{soldFor(v.id)} vendu(s)</p>
                 )}
               </div>
             ))}
@@ -456,7 +444,7 @@ export const ProductFormFields = ({ product, sold, onDone, onCancel }: ProductFo
             className={`self-start ${adminSmallOutlineButtonClassName}`}
           >
             <Plus className="size-3.5" strokeWidth={1.75} />
-            Ajouter une déclinaison
+            Ajouter un variant
           </button>
           {submitted && <FieldError message={errors.variants} />}
         </div>
@@ -487,7 +475,7 @@ export const ProductFormFields = ({ product, sold, onDone, onCancel }: ProductFo
         />
         <p className="mt-1.5 text-xs text-taupe">
           Alerte « stock faible » quand il reste ce nombre d&apos;articles ou moins
-          {hasVariants && " (par déclinaison)"}.
+          {hasVariants && " (par variant)"}.
         </p>
         {submitted && <FieldError message={errors.threshold} />}
       </div>

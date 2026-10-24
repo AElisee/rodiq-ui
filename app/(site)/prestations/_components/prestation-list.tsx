@@ -6,7 +6,8 @@ import { ReserveButton } from "./reserve-button";
 
 // Grille tarifaire (modifiable depuis l'admin) avec accès rapide aux catégories
 export const PrestationList = () => {
-  const prestationCategories = usePrestationCategories();
+  // Catégories vides masquées
+  const prestationCategories = usePrestationCategories().filter((category) => category.prestations.length > 0);
 
   return (
     <>
@@ -23,9 +24,7 @@ export const PrestationList = () => {
       </nav>
 
       <div className="mt-16 flex flex-col gap-20 md:mt-20 md:gap-24">
-        {prestationCategories
-          .filter((category) => category.prestations.length > 0)
-          .map((category) => (
+        {prestationCategories.map((category) => (
             <section key={category.id} id={category.id} className="scroll-mt-32" aria-labelledby={`${category.id}-title`}>
               <header className="border-b border-sand pb-6">
                 <h2

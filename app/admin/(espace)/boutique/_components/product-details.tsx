@@ -12,7 +12,7 @@ import { ProductVisual } from "@/components/shop/product-visual";
 import { formatPrice } from "@/lib/prestations";
 import {
   DEFAULT_LOW_STOCK_THRESHOLD,
-  DEFAULT_VARIANT_LABEL,
+  VARIANT_LABEL,
   formatMeasure,
   getDiscountPercent,
   productLevel,
@@ -149,7 +149,7 @@ export const ProductDetails = ({ id }: { id: string }) => {
             </div>
           </DetailPanel>
 
-          <DetailPanel title={product.variants?.length ? (product.variantLabel ?? DEFAULT_VARIANT_LABEL) : "Stock"}>
+          <DetailPanel title={product.variants?.length ? `${VARIANT_LABEL}s` : "Stock"}>
             {product.variants?.length ? (
               <ul className="flex flex-col text-sm">
                 {product.variants.map((v) => (

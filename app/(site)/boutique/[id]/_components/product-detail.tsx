@@ -5,7 +5,7 @@ import { ChevronRight } from "lucide-react";
 import { useState } from "react";
 import { formatPrice } from "@/lib/prestations";
 import {
-  DEFAULT_VARIANT_LABEL,
+  VARIANT_LABEL,
   getDiscountPercent,
   type ProductCategory,
   productMeasures,
@@ -130,7 +130,7 @@ export const ProductDetail = ({ id }: { id: string }) => {
           {variants.length > 0 && (
             <fieldset className="mt-8">
               <legend className="font-sans text-sm text-cocoa">
-                {product.variantLabel ?? DEFAULT_VARIANT_LABEL}
+                {VARIANT_LABEL}
                 {variant && <span className="text-taupe"> : {variant.name}</span>}
               </legend>
               <div className="mt-3 flex flex-wrap gap-3">

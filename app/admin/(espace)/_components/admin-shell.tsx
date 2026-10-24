@@ -39,7 +39,15 @@ const adminNav: AdminNavLink[] = [
   { label: "Réservations", href: "/admin/reservations", icon: CalendarCheck },
   { label: "Commandes", href: "/admin/commandes", icon: Package },
   { label: "Clientèle", href: "/admin/utilisateurs", icon: UsersRound },
-  { label: "Prestations", href: "/admin/prestations", icon: Sparkles },
+  {
+    label: "Prestations",
+    href: "/admin/prestations",
+    icon: Sparkles,
+    children: [
+      { label: "Catalogue prestations", href: "/admin/prestations/liste" },
+      { label: "Catégories", href: "/admin/prestations/categories" },
+    ],
+  },
   {
     label: "Boutique",
     href: "/admin/boutique",

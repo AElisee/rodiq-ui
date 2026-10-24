@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { ProductVisual } from "@/components/shop/product-visual";
 import {
-  DEFAULT_VARIANT_LABEL,
+  VARIANT_LABEL,
   getDiscountPercent,
   productMeasures,
   productStock,
@@ -31,7 +31,7 @@ export const ProductCard = ({ product, headingAs: Heading = "h2" }: ProductCardP
   // Produit à déclinaisons : le choix se fait sur la fiche
   const hasVariants = !!product.variants?.length;
   const variantCount = product.variants?.length ?? 0;
-  const variantLabel = (product.variantLabel ?? DEFAULT_VARIANT_LABEL).toLowerCase();
+  const variantLabel = VARIANT_LABEL.toLowerCase();
   // Confirmation « ajouté » affichée brièvement après l'ajout
   const [added, setAdded] = useState(false);
   const discount = getDiscountPercent(product);

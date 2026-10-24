@@ -33,7 +33,6 @@ export type ProductOverride = {
   hidden: boolean;
   // Vide : produit sans déclinaison, suivi par `stock`
   variants: ProductVariant[];
-  variantLabel: string;
   stock: number;
   lowStockThreshold: number;
   // Absent : photos d'origine (lib/produits.ts) ; vide : aucune photo
@@ -54,9 +53,16 @@ type CatalogState = {
   removedProductIds: string[];
   // Catégories de la boutique, dans l'ordre d'affichage
   productCategories: ProductCategory[];
-  updateCategory: (id: string, data: Pick<PrestationCategory, "name" | "tagline">) => void;
+  // Ajoute une catégorie de prestations, ou modifie son nom et son accroche si elle existe déjà
+  savePrestationCategory: (category: Omit<PrestationCategory, "prestations">) => void;
+  // Supprime une catégorie vide (l'interface empêche de supprimer une catégorie qui a des prestations)
+  removePrestationCategory: (id: string) => void;
+  // Avance (-1) ou recule (+1) la catégorie dans l'ordre d'affichage
+  movePrestationCategory: (id: string, offset: -1 | 1) => void;
   savePrestation: (categoryId: string, prestation: Prestation) => void;
   removePrestation: (id: string) => void;
+  // Avance (-1) ou recule (+1) la prestation dans l'ordre d'affichage de sa catégorie
+  movePrestation: (id: string, offset: -1 | 1) => void;
   // Ajoute ou modifie un produit (catalogue : enregistré comme modification ; sinon produit ajouté)
   saveProduct: (product: CatalogProduct) => void;
   // Supprime un produit (catalogue : retiré de la liste ; produit ajouté : effacé)
@@ -70,6 +76,14 @@ type CatalogState = {
   removeProductCategory: (id: string) => void;
   // Avance (-1) ou recule (+1) la catégorie dans l'ordre d'affichage
   moveProductCategory: (id: string, offset: -1 | 1) => void;
+};
+
+// Échange l'élément avec son voisin (offset -1 : précédent, +1 : suivant) ; liste inchangée en bout de liste
+const moveItem = <T extends { id: string }>(items: T[], id: string, offset: -1 | 1) => {
+  const index = items.findIndex((item) => item.id === id);
+  const target = index + offset;
+  if (index === -1 || target < 0 || target >= items.length) return items;
+  return items.with(index, items[target]).with(target, items[index]);
 };
 
 const baseStock = (product: Product) => product.stock ?? (product.soldOut ? 0 : DEFAULT_STOCK);
@@ -91,7 +105,6 @@ export const applyOverride = (product: Product, override?: ProductOverride): Cat
           weight: override.weight ?? undefined,
           hidden: override.hidden,
           variants: override.variants.length ? override.variants : undefined,
-          variantLabel: override.variantLabel || undefined,
           stock: override.stock,
           lowStockThreshold: override.lowStockThreshold,
           ...(override.images && { images: override.images.length ? override.images : undefined }),
@@ -113,7 +126,6 @@ export const toOverride = (product: CatalogProduct): ProductOverride => ({
   weight: product.weight ?? null,
   hidden: !!product.hidden,
   variants: product.variants ?? [],
-  variantLabel: product.variantLabel ?? "",
   stock: product.stock ?? 0,
   lowStockThreshold: product.lowStockThreshold ?? DEFAULT_LOW_STOCK_THRESHOLD,
 });
@@ -146,8 +158,18 @@ export const useCatalogStore = create<CatalogState>()(
       customProducts: [],
       removedProductIds: [],
       productCategories,
-      updateCategory: (id, data) =>
-        set((s) => ({ categories: s.categories.map((c) => (c.id === id ? { ...c, ...data } : c)) })),
+      savePrestationCategory: ({ id, name, tagline }) =>
+        set((s) => {
+          const index = s.categories.findIndex((c) => c.id === id);
+          return {
+            categories:
+              index === -1
+                ? [...s.categories, { id, name, tagline, prestations: [] }]
+                : s.categories.with(index, { ...s.categories[index], name, tagline }),
+          };
+        }),
+      removePrestationCategory: (id) => set((s) => ({ categories: s.categories.filter((c) => c.id !== id) })),
+      movePrestationCategory: (id, offset) => set((s) => ({ categories: moveItem(s.categories, id, offset) })),
       // Ajoute la prestation, ou la remplace si elle existe déjà (éventuellement dans une autre catégorie)
       savePrestation: (categoryId, prestation) =>
         set((s) => ({
@@ -168,6 +190,12 @@ export const useCatalogStore = create<CatalogState>()(
             ...c,
             prestations: c.prestations.filter((p) => p.id !== id),
           })),
+        })),
+      movePrestation: (id, offset) =>
+        set((s) => ({
+          categories: s.categories.map((c) =>
+            c.prestations.some((p) => p.id === id) ? { ...c, prestations: moveItem(c.prestations, id, offset) } : c,
+          ),
         })),
       saveProduct: (product) =>
         set((s) => {
@@ -223,16 +251,7 @@ export const useCatalogStore = create<CatalogState>()(
       removeProductCategory: (id) =>
         set((s) => ({ productCategories: s.productCategories.filter((c) => c.id !== id) })),
       moveProductCategory: (id, offset) =>
-        set((s) => {
-          const index = s.productCategories.findIndex((c) => c.id === id);
-          const target = index + offset;
-          if (index === -1 || target < 0 || target >= s.productCategories.length) return {};
-          return {
-            productCategories: s.productCategories
-              .with(index, s.productCategories[target])
-              .with(target, s.productCategories[index]),
-          };
-        }),
+        set((s) => ({ productCategories: moveItem(s.productCategories, id, offset) })),
     }),
     {
       name: "rodiq-catalog",

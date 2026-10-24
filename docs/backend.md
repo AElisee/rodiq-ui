@@ -10,7 +10,7 @@ un store par des appels API branche les deux côtés d'un coup.
 | ----------------------------------------- | ---------------------- | ------------------------------------------------ | ------------------------------------------ |
 | `auth-store` (`rodiq-auth`)               | `accounts`, session    | connexion, inscription, réservation, commande    | lecture seule (Clientèle)                  |
 | `admin-store` (`rodiq-admin`)             | session admin          | —                                                | connexion `/admin/connexion`               |
-| `catalog-store` (`rodiq-catalog`)         | `prestations`, `product-categories`, `products` | prestations, réservation, boutique, panier | Prestations, Boutique › Produits, Boutique › Catégories |
+| `catalog-store` (`rodiq-catalog`)         | `prestation-categories`, `prestations`, `product-categories`, `products` | prestations, réservation, boutique, panier | Prestations › Catalogue prestations, Prestations › Catégories, Boutique › Produits, Boutique › Catégories |
 | `reservation-store` (`rodiq-reservations`) | `reservations`        | réservation, mes réservations                    | Réservations, tableau de bord, Clientèle   |
 | `order-store` (`rodiq-orders`)            | `orders`               | commande, mes commandes                          | Commandes, tableau de bord, Clientèle      |
 | `settings-store` (`rodiq-settings`)       | `settings`             | créneaux, horaires, contact, logo, frais de port | Réglages                                   |
@@ -35,7 +35,7 @@ Les types de référence sont dans `lib/reservations.ts`, `lib/commandes.ts`, `l
 - `GET /slots` : créneaux réservables avec places restantes (calcul actuel : `getSlots` + réservations
   actives, voir `booking-flow.tsx`)
 - `POST /reservations` ← `add` · `GET /me/reservations`
-- `POST /reservations/:id/cancel` ← `cancel` (cliente, motif facultatif)
+- `POST /reservations/:id/cancel` ← `cancel` (par le compte qui a réservé, motif optionnel)
 - Admin : `GET /admin/reservations`, `GET /admin/reservations/:id`,
   `POST …/:id/confirm` ← `confirm`, `POST …/:id/reject` ← `reject` (motif obligatoire),
   `POST …/:id/complete` ← `complete`
@@ -49,8 +49,18 @@ Les types de référence sont dans `lib/reservations.ts`, `lib/commandes.ts`, `l
 
 ### Catalogue
 
-- `GET /prestations` (par catégorie) · admin : `PATCH /admin/prestation-categories/:id` ← `updateCategory`,
-  `PUT /admin/prestations/:id` ← `savePrestation`, `DELETE /admin/prestations/:id` ← `removePrestation`
+- `GET /prestations` (catégories dans l'ordre d'affichage, chacune avec ses prestations dans l'ordre) · admin :
+  `POST /admin/prestation-categories` et `PUT /admin/prestation-categories/:id` ← `savePrestationCategory`,
+  `DELETE /admin/prestation-categories/:id` ← `removePrestationCategory`,
+  `PUT /admin/prestation-categories/order` (liste des identifiants) ← `movePrestationCategory`
+- `PUT /admin/prestations/:id` ← `savePrestation` (crée ou modifie, et peut changer de catégorie),
+  `DELETE /admin/prestations/:id` ← `removePrestation`,
+  `PUT /admin/prestation-categories/:id/prestations/order` (liste des identifiants) ← `movePrestation`
+- Une catégorie de prestations a un `id` (slug tiré du nom, conservé ensuite : il sert d'ancre sur
+  `/prestations`), un `name` et une `tagline` (accroche, peut être vide). Une prestation a un `id`
+  (slug du nom + suffixe aléatoire), un `name`, un `price`, `fromPrice` (prix « dès ») et une `note`. Le site
+  n'affiche que les catégories qui ont au moins une prestation. Les catégories de départ
+  (`prestationCategories` de `lib/prestations.ts`) servent de données initiales.
 - `GET /product-categories` (dans l'ordre d'affichage) · admin : `POST /admin/product-categories` et
   `PUT /admin/product-categories/:id` ← `saveProductCategory`, `DELETE /admin/product-categories/:id` ←
   `removeProductCategory`, `PUT /admin/product-categories/order` (liste des identifiants) ←
@@ -84,20 +94,23 @@ Elles sont vérifiées dans l'interface, mais le serveur doit les revérifier :
   `bookingWindowDays`, et il reste une place (`slotCapacity`, `null` = illimité). Seules les réservations
   `en_attente` et `confirmee` occupent une place (`isActive`). Vérifier dans une transaction pour éviter
   deux réservations sur la dernière place.
-- **Annulation par la cliente** : seulement pour ses propres réservations actives, au plus tard
+- **Annulation côté site** : seulement pour ses propres réservations actives, au plus tard
   `cancellationNoticeDays` jours avant (`canCancel`).
 - **Transitions** de statut : voir les commentaires en tête de `lib/reservations.ts` et `lib/commandes.ts`.
   « Soin terminé » seulement le jour même ou après ; refus et annulation admin avec motif.
 - **Prix figés** : les lignes d'une réservation (`lines`) et d'une commande (`lines`) gardent nom et prix
   au moment de la demande. Le serveur les recalcule depuis le catalogue à la création, sans faire
   confiance aux prix envoyés par le navigateur, de même que les frais de livraison (`deliveryFeeFor`).
+- **Catégories de prestations** : nom obligatoire (2 caractères au moins) et unique ; refuser la suppression
+  d'une catégorie qui a encore des prestations et l'enregistrement d'une prestation dont la catégorie n'existe
+  pas. Une réservation ne peut viser que des prestations existantes.
 - **Catégories de produits** : nom obligatoire et unique ; refuser la suppression d'une catégorie qui a encore
   des produits (masqués compris) et l'enregistrement d'un produit dont la catégorie n'existe pas.
 - **Commande** : refuser les produits masqués, les déclinaisons inconnues et toute quantité supérieure au
   stock restant ; décrémenter le stock dans la même transaction que la création de la commande
   (aujourd'hui `moveStock` dans `order-store.ts`), et le rendre à l'annulation.
 - **Références** (`RDQ-…`, `CMD-…`) générées et garanties uniques par le serveur.
-- **Accès** : une cliente ne lit que ses réservations et commandes ; tout `/admin/*` exige la session admin.
+- **Accès** : un compte ne lit que ses réservations et commandes ; tout `/admin/*` exige la session admin.
 
 ## Ce qui disparaît avec le backend
 

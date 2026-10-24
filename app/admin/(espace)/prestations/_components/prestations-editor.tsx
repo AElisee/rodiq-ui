@@ -1,6 +1,7 @@
 "use client";
 
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Pencil, Plus, Trash2 } from "lucide-react";
+import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
 import {
@@ -9,7 +10,6 @@ import {
   adminButtonClassName,
   adminInputClassName,
   adminLabelClassName,
-  adminOutlineButtonClassName,
   adminSmallOutlineButtonClassName,
 } from "@/components/admin/admin-ui";
 import { FieldError } from "@/components/forms/form-fields";
@@ -30,8 +30,12 @@ import {
   useCatalogHydrated,
   useCatalogStore,
 } from "@/lib/stores/catalog-store";
+import { iconButtonClassName } from "../../boutique/_components/product-actions";
 
-const slugify = (text: string) =>
+export const dialogClassName =
+  "gap-0 rounded-[var(--radius)] bg-pearl p-6 font-sans text-cocoa sm:max-w-md md:p-8";
+
+export const slugify = (text: string) =>
   text
     .normalize("NFD")
     .replace(/\p{Diacritic}/gu, "")
@@ -110,7 +114,7 @@ const PrestationForm = ({
       }}
     >
       <DialogTrigger asChild>{trigger}</DialogTrigger>
-      <DialogContent className="gap-0 rounded-[var(--radius)] bg-pearl p-6 font-sans text-cocoa sm:max-w-md md:p-8">
+      <DialogContent className={dialogClassName}>
         <DialogTitle className="font-serif text-xl leading-tight font-normal">
           {prestation ? "Modifier la prestation" : "Nouvelle prestation"}
         </DialogTitle>
@@ -224,12 +228,13 @@ const DeletePrestation = ({ prestation }: { prestation: Prestation }) => {
         <button
           type="button"
           aria-label={`Supprimer ${prestation.name}`}
-          className="inline-flex size-8 items-center justify-center rounded-full text-taupe transition-colors hover:bg-sand hover:text-cocoa"
+          title="Supprimer"
+          className={iconButtonClassName}
         >
           <Trash2 className="size-4" strokeWidth={1.75} />
         </button>
       </DialogTrigger>
-      <DialogContent className="gap-0 rounded-[var(--radius)] bg-pearl p-6 font-sans text-cocoa sm:max-w-md md:p-8">
+      <DialogContent className={dialogClassName}>
         <DialogTitle className="font-serif text-xl leading-tight font-normal">
           Supprimer « {prestation.name} » ?
         </DialogTitle>
@@ -264,146 +269,151 @@ const DeletePrestation = ({ prestation }: { prestation: Prestation }) => {
   );
 };
 
-// Nom et accroche d'une catégorie, modifiables sur place
-const CategoryHeader = ({ category }: { category: PrestationCategory }) => {
-  const updateCategory = useCatalogStore((s) => s.updateCategory);
-  const [name, setName] = useState(category.name);
-  const [tagline, setTagline] = useState(category.tagline);
-  const changed = name !== category.name || tagline !== category.tagline;
+const moveButtonClassName = `${iconButtonClassName} disabled:pointer-events-none disabled:opacity-30`;
 
-  return (
-    <form
-      onSubmit={(e) => {
-        e.preventDefault();
-        if (!name.trim()) return;
-        updateCategory(category.id, {
-          name: name.trim(),
-          tagline: tagline.trim(),
-        });
-        toast.success("Catégorie enregistrée", { description: name.trim() });
-      }}
-      className="grid gap-3 sm:grid-cols-[1fr_1.5fr_auto] sm:items-end"
-    >
-      <div>
-        <label
-          htmlFor={`category-name-${category.id}`}
-          className={adminLabelClassName}
-        >
-          Catégorie
-        </label>
-        <input
-          id={`category-name-${category.id}`}
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          className={`${adminInputClassName} font-serif text-base`}
-        />
-      </div>
-      <div>
-        <label
-          htmlFor={`category-tagline-${category.id}`}
-          className={adminLabelClassName}
-        >
-          Accroche
-        </label>
-        <input
-          id={`category-tagline-${category.id}`}
-          value={tagline}
-          onChange={(e) => setTagline(e.target.value)}
-          className={adminInputClassName}
-        />
-      </div>
-      <button
-        type="submit"
-        disabled={!changed || !name.trim()}
-        className={adminOutlineButtonClassName}
-      >
-        Enregistrer
-      </button>
-    </form>
-  );
-};
-
-// Grille tarifaire affichée sur /prestations et proposée à la réservation
+// Prestations par catégorie, dans l'ordre affiché sur /prestations et proposé à la réservation
 export const PrestationsEditor = () => {
   const hydrated = useCatalogHydrated();
   const categories = useCatalogStore((s) => s.categories);
+  const movePrestation = useCatalogStore((s) => s.movePrestation);
 
   if (!hydrated) return <div className="min-h-96" aria-hidden />;
+
+  const total = categories.reduce((sum, c) => sum + c.prestations.length, 0);
 
   return (
     <div className="flex flex-col gap-8">
       <AdminPageHeader
         title="Prestations"
-        description="Catégories, prestations et tarifs affichés sur le site et proposés à la réservation."
-      />
+        description={`${total} prestation${total > 1 ? "s" : ""} · affichées dans cet ordre sur le site et proposées à la réservation.`}
+      >
+        {categories.length > 0 && (
+          <PrestationForm
+            categories={categories}
+            categoryId={categories[0].id}
+            trigger={
+              <button type="button" className={adminButtonClassName}>
+                <Plus className="size-4" strokeWidth={1.75} />
+                Ajouter une prestation
+              </button>
+            }
+          />
+        )}
+      </AdminPageHeader>
 
-      <div className="mx-auto flex w-full max-w-3xl flex-col gap-8">
-        {categories.map((category) => (
-          <AdminPanel key={category.id} className="flex flex-col gap-5">
-            <CategoryHeader
-              key={`${category.name}|${category.tagline}`}
-              category={category}
-            />
+      {categories.length > 0 ? (
+        <div className="mx-auto flex w-full max-w-3xl flex-col gap-8">
+          {categories.map((category) => (
+            <section key={category.id} id={category.id} className="scroll-mt-24">
+              <AdminPanel className="flex flex-col gap-5">
+                <header>
+                  <h2 className="font-serif text-xl leading-tight text-cocoa">
+                    {category.name}
+                  </h2>
+                  {category.tagline && (
+                    <p className="mt-0.5 font-sans text-sm text-taupe">
+                      {category.tagline}
+                    </p>
+                  )}
+                </header>
 
-            {category.prestations.length > 0 ? (
-              <ul className="divide-y divide-sand border-y border-sand font-sans text-sm text-cocoa">
-                {category.prestations.map((prestation) => (
-                  <li
-                    key={prestation.id}
-                    className="flex flex-wrap items-center justify-between gap-3 py-3"
-                  >
-                    <div className="min-w-0">
-                      <p>{prestation.name}</p>
-                      {prestation.note && (
-                        <p className="text-xs text-taupe">{prestation.note}</p>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="mr-2 whitespace-nowrap">
-                        {formatPrice(prestation.price, prestation.fromPrice)}
-                      </span>
-                      <PrestationForm
-                        key={JSON.stringify(prestation)}
-                        categories={categories}
-                        categoryId={category.id}
-                        prestation={prestation}
-                        trigger={
-                          <button
-                            type="button"
-                            aria-label={`Modifier ${prestation.name}`}
-                            className="inline-flex size-8 items-center justify-center rounded-full text-taupe transition-colors hover:bg-sand hover:text-cocoa"
-                          >
-                            <Pencil className="size-4" strokeWidth={1.75} />
-                          </button>
-                        }
-                      />
-                      <DeletePrestation prestation={prestation} />
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="border-y border-sand py-4 font-sans text-sm text-taupe">
-                Aucune prestation : la catégorie est masquée sur le site.
-              </p>
-            )}
+                {category.prestations.length > 0 ? (
+                  <ul className="divide-y divide-sand border-y border-sand font-sans text-sm text-cocoa">
+                    {category.prestations.map((prestation, index) => (
+                      <li
+                        key={prestation.id}
+                        className="flex flex-wrap items-center justify-between gap-3 py-3"
+                      >
+                        <div className="flex min-w-0 items-center gap-3">
+                          <div className="flex shrink-0 items-center">
+                            <button
+                              type="button"
+                              onClick={() => movePrestation(prestation.id, -1)}
+                              disabled={index === 0}
+                              aria-label={`Monter ${prestation.name}`}
+                              title="Monter"
+                              className={moveButtonClassName}
+                            >
+                              <ArrowUp className="size-4" strokeWidth={1.75} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => movePrestation(prestation.id, 1)}
+                              disabled={index === category.prestations.length - 1}
+                              aria-label={`Descendre ${prestation.name}`}
+                              title="Descendre"
+                              className={moveButtonClassName}
+                            >
+                              <ArrowDown className="size-4" strokeWidth={1.75} />
+                            </button>
+                          </div>
+                          <div className="min-w-0">
+                            <p>{prestation.name}</p>
+                            {prestation.note && (
+                              <p className="text-xs text-taupe">{prestation.note}</p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="mr-2 whitespace-nowrap">
+                            {formatPrice(prestation.price, prestation.fromPrice)}
+                          </span>
+                          <PrestationForm
+                            key={JSON.stringify(prestation)}
+                            categories={categories}
+                            categoryId={category.id}
+                            prestation={prestation}
+                            trigger={
+                              <button
+                                type="button"
+                                aria-label={`Modifier ${prestation.name}`}
+                                title="Modifier"
+                                className={iconButtonClassName}
+                              >
+                                <Pencil className="size-4" strokeWidth={1.75} />
+                              </button>
+                            }
+                          />
+                          <DeletePrestation prestation={prestation} />
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="border-y border-sand py-4 font-sans text-sm text-taupe">
+                    Aucune prestation : la catégorie est masquée sur le site.
+                  </p>
+                )}
 
-            <PrestationForm
-              categories={categories}
-              categoryId={category.id}
-              trigger={
-                <button
-                  type="button"
-                  className={`self-start ${adminSmallOutlineButtonClassName}`}
-                >
-                  <Plus className="size-3.5" strokeWidth={1.75} />
-                  Ajouter une prestation
-                </button>
-              }
-            />
-          </AdminPanel>
-        ))}
-      </div>
+                <PrestationForm
+                  categories={categories}
+                  categoryId={category.id}
+                  trigger={
+                    <button
+                      type="button"
+                      className={`self-start ${adminSmallOutlineButtonClassName}`}
+                    >
+                      <Plus className="size-3.5" strokeWidth={1.75} />
+                      Ajouter à {category.name}
+                    </button>
+                  }
+                />
+              </AdminPanel>
+            </section>
+          ))}
+        </div>
+      ) : (
+        <p className="text-center font-serif text-lg text-cocoa">
+          Aucune catégorie :{" "}
+          <Link
+            href="/admin/prestations/categories"
+            className="underline underline-offset-4"
+          >
+            ajoutez-en une
+          </Link>{" "}
+          pour pouvoir créer des prestations.
+        </p>
+      )}
     </div>
   );
 };

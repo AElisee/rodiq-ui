@@ -1,10 +1,6 @@
-import type { Metadata } from "next";
-import { PrestationsEditor } from "./_components/prestations-editor";
+import { redirect } from "next/navigation";
 
-export const metadata: Metadata = {
-  title: "Prestations",
-};
-
-const AdminPrestationsPage = () => <PrestationsEditor />;
+// Les prestations se gèrent par sous-menus : liste par catégorie par défaut
+const AdminPrestationsPage = () => redirect("/admin/prestations/liste");
 
 export default AdminPrestationsPage;
