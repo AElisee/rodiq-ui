@@ -1,8 +1,6 @@
 import { create } from "zustand";
 import { authApi, type SignUpBody } from "@/lib/api/auth";
 import { isApiError } from "@/lib/api/client";
-import { ensureHydrated } from "./hydration";
-import { useOrderStore } from "./order-store";
 import { createLoadHook } from "./remote";
 
 export type Account = {
@@ -28,14 +26,6 @@ type AuthState = {
   signOut: () => Promise<void>;
 };
 
-// Commandes passées sans compte (même e-mail) rattachées au nouveau compte.
-// Maquette : les commandes sont encore dans le navigateur. Les réservations, elles, exigent un compte
-// (pas de rattachement par e-mail : l'adresse n'est pas vérifiée, voir docs/backend.md).
-const linkGuestHistory = async (accountId: string, email: string) => {
-  await ensureHydrated(useOrderStore);
-  useOrderStore.getState().claim(accountId, email);
-};
-
 // Session du client : le cookie httpOnly est géré par le navigateur, le store garde le compte connecté
 export const useAuthStore = create<AuthState>()((set) => ({
   account: null,
@@ -52,7 +42,6 @@ export const useAuthStore = create<AuthState>()((set) => ({
     try {
       const account = await authApi.signUp(data);
       set({ account, checked: true });
-      await linkGuestHistory(account.id, account.email);
       return { ok: true };
     } catch (error) {
       if (isApiError(error, 409)) return { ok: false, error: "email_taken" };

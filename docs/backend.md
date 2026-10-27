@@ -16,7 +16,8 @@ un store par des appels API branche les deux côtés d'un coup.
 | `reservation-store` (**branché sur l'API**) | `me/reservations`, `reservations` | réservation, mes réservations (compte connecté) | —                                  |
 | `slots-store` (**branché sur l'API**)     | `creneaux`             | réservation (créneaux et places libres)          | —                                          |
 | `admin-reservations-store` (**branché sur l'API**) | `admin/reservations` | —                                       | Réservations, fiche, pastille du menu, tableau de bord, Clientèle |
-| `order-store` (`rodiq-orders`)            | `orders`               | commande, mes commandes                          | Commandes, tableau de bord, Clientèle      |
+| `order-store` (**branché sur l'API**)     | `commandes`, `me/commandes` | commande, mes commandes (compte connecté)     | —                                          |
+| `admin-orders-store` (**branché sur l'API**) | `admin/commandes`   | —                                                | Commandes, fiche, pastille du menu, tableau de bord, Clientèle, ventes par produit |
 | `settings-store` (**branché sur l'API**)  | `parametres`           | créneaux, horaires, contact, logo, frais de port | Réglages                                   |
 | `visit-store` (`rodiq-visits`)            | `stats/visits`         | compteur (une visite par session)                | tableau de bord                            |
 | `cart-store`, `booking-store`             | — (reste côté navigateur) | panier, sélection en cours                    | —                                          |
@@ -33,8 +34,6 @@ Les types de référence sont dans `lib/reservations.ts`, `lib/commandes.ts`, `l
 - `GET /me` ← `restore` (lancé par `useAuthHydrated`)
 - Admin : `POST /admin/auth/sign-in` ← `signIn` · `POST /admin/auth/sign-out` ← `signOut` · `GET /admin/me` ←
   `restore` (`useAdminHydrated`) ; un 401 sur une écriture admin appelle `expire` (retour à la connexion)
-- À l'inscription, rattacher au compte les réservations et commandes passées **sans compte** avec la même
-  adresse e-mail (fait aujourd'hui par `linkGuestHistory` dans `auth-store.ts`).
 - `GET /admin/accounts` (Clientèle : comptes avec leurs réservations et commandes) : **à créer**, l'écran
   Clientèle affiche encore `demoClientAccounts`
 
@@ -79,10 +78,26 @@ canalContact, note, motifRefus, motifAnnulation, creeLe, traiteeLe }`. Côté cl
 
 ### Commandes
 
-- `POST /orders` ← `add` · `GET /me/orders`
-- Admin : `GET /admin/orders`, `GET /admin/orders/:id`, `POST …/:id/accept` ← `accept`,
-  `POST …/:id/ready` ← `markReady`, `POST …/:id/deliver` ← `deliver`, `POST …/:id/cancel` ← `cancel`
-  (motif obligatoire), `POST …/:id/paid` ← `markPaid`
+Implémenté dans `api-rodiq/src/commandes/`, branché via `lib/api/commandes.ts` et deux stores : `order-store`
+(commandes du compte connecté : `load` ← `GET /me/commandes`, relu quand le compte change, `useMyOrders` ; `add`
+← `POST /commandes` ; `cancel` ← `POST /me/commandes/:id/annuler` ; après une commande, une annulation ou un refus,
+les produits concernés sont relus dans `shop-store`) et `admin-orders-store` (`loadPage` ← liste paginée,
+`loadDetail` ← fiche, `accept` / `markReady` / `deliver` / `markPaid` / `cancel`, `pendingCount` ←
+`statut=en_attente&parPage=1` pour la pastille, `loadAll` ← toutes les pages pour les indicateurs de l'écran
+Commandes, le tableau de bord, la Clientèle et les ventes par produit, `fetchMatching` ← export). **Compte client
+obligatoire** : `checkout-flow.tsx` renvoie vers la connexion ou l'inscription, les coordonnées viennent du compte.
+
+- `POST /commandes` ← `add` : `{ lignes: [{ produitId, declinaisonId?, quantite }], mode, destination?, adresse?,
+  modePaiement, totalAttendu, note? }`. Nom, prix et frais recalculés par le serveur ; stock retiré dans la même
+  transaction. **400** liste chaque article refusé (masqué, supprimé, épuisé, stock insuffisant, déclinaison
+  manquante) et chaque erreur de livraison ; **409** si le total recalculé diffère de `totalAttendu` ou si le
+  compte a déjà 3 commandes en attente. L'adresse est envoyée seule (plus concaténée avec la commune).
+- `GET /me/commandes` · `POST /me/commandes/:id/annuler` (`{ motif? }`, seulement `en_attente`, stock rendu)
+- Admin : `GET /admin/commandes` (`statut`, `paiement` payees|a-encaisser, `mode`, `q`, `tri`, `page`, `parPage`
+  → `{ elements, total, page, parPage, parStatut }`), `GET /admin/commandes/:id`, `POST …/:id/accepter` ← `accept`,
+  `POST …/:id/prete` ← `markReady`, `POST …/:id/remise` ← `deliver` (espèces → payée), `POST …/:id/encaisser`
+  ← `markPaid`, `POST …/:id/annuler` ← `cancel` (`{ motif }`, 5 caractères au moins, stock rendu). Chaque action
+  renvoie la commande à jour ; **409** avec la raison si le statut a changé entre-temps.
 
 ### Catalogue
 
@@ -219,7 +234,7 @@ Elles sont vérifiées dans l'interface, mais le serveur doit les revérifier :
   des produits (masqués compris) et l'enregistrement d'un produit dont la catégorie n'existe pas.
 - **Commande** : refuser les produits masqués, les déclinaisons inconnues et toute quantité supérieure au
   stock restant ; décrémenter le stock dans la même transaction que la création de la commande
-  (aujourd'hui `moveStock` dans `order-store.ts`), et le rendre à l'annulation.
+  (fait par l'API), et le rendre à l'annulation.
 - **Références** (`RDQ-…`, `CMD-…`) générées et garanties uniques par le serveur.
 - **Accès** : un compte ne lit que ses réservations et commandes ; tout `/admin/*` exige la session admin.
 

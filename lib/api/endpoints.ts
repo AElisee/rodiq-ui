@@ -61,4 +61,16 @@ export const endpoints = {
     refus: (id: string) => `/admin/reservations/${encodeURIComponent(id)}/refuser`,
     fin: (id: string) => `/admin/reservations/${encodeURIComponent(id)}/terminer`,
   },
+  commandes: {
+    creation: "/commandes",
+    miennes: "/me/commandes",
+    annulation: (id: string) => `/me/commandes/${encodeURIComponent(id)}/annuler`,
+    liste: "/admin/commandes",
+    detail: (id: string) => `/admin/commandes/${encodeURIComponent(id)}`,
+    acceptation: (id: string) => `/admin/commandes/${encodeURIComponent(id)}/accepter`,
+    preparee: (id: string) => `/admin/commandes/${encodeURIComponent(id)}/prete`,
+    remise: (id: string) => `/admin/commandes/${encodeURIComponent(id)}/remise`,
+    encaissement: (id: string) => `/admin/commandes/${encodeURIComponent(id)}/encaisser`,
+    annulationSalon: (id: string) => `/admin/commandes/${encodeURIComponent(id)}/annuler`,
+  },
 } as const;

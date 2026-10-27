@@ -1,30 +1,43 @@
 "use client";
 
+import { useState } from "react";
 import { toast } from "sonner";
 import { adminSmallButtonClassName } from "@/components/admin/admin-ui";
+import { errorMessage } from "@/lib/api/client";
 import type { Order } from "@/lib/commandes";
-import { useOrderStore } from "@/lib/stores/order-store";
+import { useAdminOrdersStore } from "@/lib/stores/admin-orders-store";
 import { CancelOrderDialog } from "./cancel-order-dialog";
 
 // Étape suivante du suivi selon le statut : accepter, expédier / prête au retrait, remettre, annuler
 export const OrderActions = ({ order: o }: { order: Order }) => {
-  const accept = useOrderStore((s) => s.accept);
-  const markReady = useOrderStore((s) => s.markReady);
-  const deliver = useOrderStore((s) => s.deliver);
+  const accept = useAdminOrdersStore((s) => s.accept);
+  const markReady = useAdminOrdersStore((s) => s.markReady);
+  const deliver = useAdminOrdersStore((s) => s.deliver);
+  const [pending, setPending] = useState(false);
   const pickup = o.delivery.mode === "retrait";
+  const who = `${o.customer.firstName} ${o.customer.lastName} · ${o.reference}`;
 
-  const notify = (message: string) =>
-    toast.success(message, { description: `${o.customer.firstName} ${o.customer.lastName} · ${o.reference}` });
+  const run = async (request: () => Promise<unknown>, success: string, failure: string) => {
+    setPending(true);
+    try {
+      await request();
+      toast.success(success, { description: who });
+    } catch (error) {
+      toast.error(failure, { description: errorMessage(error) });
+    } finally {
+      setPending(false);
+    }
+  };
 
   return (
     <>
       {o.status === "en_attente" && (
         <button
           type="button"
-          onClick={() => {
-            accept(o.id);
-            notify("Commande acceptée");
-          }}
+          disabled={pending}
+          onClick={() =>
+            run(() => accept(o.id), "Commande acceptée", `La commande ${o.reference} n'a pas été acceptée`)
+          }
           className={adminSmallButtonClassName}
         >
           Accepter
@@ -33,10 +46,14 @@ export const OrderActions = ({ order: o }: { order: Order }) => {
       {o.status === "en_preparation" && (
         <button
           type="button"
-          onClick={() => {
-            markReady(o.id);
-            notify(pickup ? "Commande prête au retrait" : "Commande expédiée");
-          }}
+          disabled={pending}
+          onClick={() =>
+            run(
+              () => markReady(o.id),
+              pickup ? "Commande prête au retrait" : "Commande expédiée",
+              `La commande ${o.reference} n'a pas été marquée ${pickup ? "prête au retrait" : "expédiée"}`,
+            )
+          }
           className={adminSmallButtonClassName}
         >
           {pickup ? "Prête au retrait" : "Expédier"}
@@ -45,10 +62,14 @@ export const OrderActions = ({ order: o }: { order: Order }) => {
       {o.status === "prete" && (
         <button
           type="button"
-          onClick={() => {
-            deliver(o.id);
-            notify(pickup ? "Commande retirée" : "Commande livrée");
-          }}
+          disabled={pending}
+          onClick={() =>
+            run(
+              () => deliver(o.id),
+              pickup ? "Commande retirée" : "Commande livrée",
+              `La commande ${o.reference} n'a pas été marquée ${pickup ? "retirée" : "livrée"}`,
+            )
+          }
           className={adminSmallButtonClassName}
         >
           {pickup ? "Marquer retirée" : "Marquer livrée"}

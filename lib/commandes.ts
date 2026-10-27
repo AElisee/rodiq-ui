@@ -1,6 +1,8 @@
 // Cycle de vie d'une commande de la boutique :
 // en_attente → en_preparation → prete (expédiée ou prête au retrait) → livree
+// en_attente → annulee (par le client ou la cliente, tant que la préparation n'a pas commencé)
 // en_attente / en_preparation → annulee (motif obligatoire, côté admin)
+// Toute annulation rend le stock (fait par l'API, comme le retrait à la création)
 export type OrderStatus = "en_attente" | "en_preparation" | "prete" | "livree" | "annulee";
 
 export type DeliveryMode = "livraison" | "retrait";
@@ -18,11 +20,13 @@ export type OrderLine = {
   quantity: number;
 };
 
+// Coordonnées copiées du compte à la commande
 export type OrderCustomer = {
   firstName: string;
   lastName: string;
   phone: string;
-  email?: string;
+  whatsapp?: string;
+  email: string;
 };
 
 export type Order = {
@@ -33,7 +37,9 @@ export type Order = {
   customer: OrderCustomer;
   delivery: {
     mode: DeliveryMode;
+    // Commune livrée ou ville desservie par expédition
     commune?: string;
+    // Adresse ou repère, sans la commune
     address?: string;
   };
   deliveryFee: number; // FCFA, 0 pour un retrait au salon
@@ -41,10 +47,15 @@ export type Order = {
   paid: boolean;
   note?: string;
   status: OrderStatus;
+  cancelledBy?: "cliente" | "salon";
   cancellationReason?: string;
-  accountId?: string;
   createdAt: string; // ISO
   updatedAt?: string; // ISO, dernier changement de statut
+  // Vue du client ou de la cliente : annulation en ligne encore possible (calculé par l'API)
+  canCancel?: boolean;
+  // Vue de l'admin
+  accountId?: string;
+  paidAt?: string; // ISO
 };
 
 export const orderStatusMeta: Record<OrderStatus, { label: string; badgeClassName: string }> = {
@@ -126,12 +137,9 @@ export const shippingDestinations: ShippingRate[] = [
 export const deliveryFeeFor = (rates: readonly ShippingRate[], place: string) =>
   rates.find((r) => r.place === place)?.fee ?? 0;
 
-// Référence lisible, sans caractères ambigus (0/O, 1/I)
-export const generateOrderReference = () => {
-  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  const code = Array.from(crypto.getRandomValues(new Uint8Array(6)), (n) => alphabet[n % alphabet.length]);
-  return `CMD-${code.join("")}`;
-};
+// Adresse complète d'une livraison : repère puis commune
+export const orderDeliveryAddress = (order: Pick<Order, "delivery">) =>
+  [order.delivery.address, order.delivery.commune].filter(Boolean).join(", ");
 
 // Une commande en cours demande une action de l'admin
 export const isOpenOrder = (status: OrderStatus) =>

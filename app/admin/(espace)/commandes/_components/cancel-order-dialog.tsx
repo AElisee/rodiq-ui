@@ -16,9 +16,10 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { errorMessage } from "@/lib/api/client";
 import { orderTotal, type Order } from "@/lib/commandes";
 import { formatPrice } from "@/lib/prestations";
-import { useOrderStore } from "@/lib/stores/order-store";
+import { useAdminOrdersStore } from "@/lib/stores/admin-orders-store";
 
 // Suggestions de motifs, modifiables avant l'envoi
 const presetReasons = [
@@ -29,18 +30,26 @@ const presetReasons = [
 
 // Annulation d'une commande : le motif est obligatoire et transmis au client ou à la cliente
 export const CancelOrderDialog = ({ order }: { order: Order }) => {
-  const cancel = useOrderStore((s) => s.cancel);
+  const cancel = useAdminOrdersStore((s) => s.cancel);
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState("");
+  const [pending, setPending] = useState(false);
   const valid = reason.trim().length >= 5;
 
-  const confirm = () => {
-    cancel(order.id, reason.trim());
-    setOpen(false);
-    setReason("");
-    toast("Commande annulée", {
-      description: `${order.customer.firstName} ${order.customer.lastName} · ${order.reference}`,
-    });
+  const confirm = async () => {
+    setPending(true);
+    try {
+      await cancel(order.id, reason.trim());
+      setOpen(false);
+      setReason("");
+      toast("Commande annulée, articles remis en stock", {
+        description: `${order.customer.firstName} ${order.customer.lastName} · ${order.reference}`,
+      });
+    } catch (error) {
+      toast.error(`La commande ${order.reference} n'a pas été annulée`, { description: errorMessage(error) });
+    } finally {
+      setPending(false);
+    }
   };
 
   return (
@@ -80,7 +89,7 @@ export const CancelOrderDialog = ({ order }: { order: Order }) => {
           rows={3}
           value={reason}
           onChange={(e) => setReason(e.target.value)}
-          maxLength={300}
+          maxLength={500}
           aria-required
           className={adminTextareaClassName}
         />
@@ -91,7 +100,7 @@ export const CancelOrderDialog = ({ order }: { order: Order }) => {
               Retour
             </button>
           </DialogClose>
-          <button type="button" onClick={confirm} disabled={!valid} className={`w-full sm:w-auto ${adminButtonClassName}`}>
+          <button type="button" onClick={confirm} disabled={!valid || pending} className={`w-full sm:w-auto ${adminButtonClassName}`}>
             Confirmer l&apos;annulation
           </button>
         </div>

@@ -16,7 +16,7 @@ import { formatPrice } from "@/lib/prestations";
 import { MAX_PHOTOS, VARIANT_LABEL, formatMeasure, getDiscountPercent, type AdminProduct } from "@/lib/produits";
 import { useAdminBoutiqueStore, useAdminCategories } from "@/lib/stores/admin-boutique-store";
 import type { ReadError } from "@/lib/stores/shop-store";
-import { useOrderStore, useOrdersHydrated } from "@/lib/stores/order-store";
+import { useAdminOrdersStore, useAllOrdersLoaded } from "@/lib/stores/admin-orders-store";
 import { cn } from "@/lib/utils";
 import { DeleteProduct, iconButtonClassName } from "./product-actions";
 import { photoErrorMessage, useSoldCounts } from "./product-form";
@@ -218,10 +218,10 @@ const ProductPhotos = ({ product }: { product: AdminProduct }) => {
 // Fiche d'un produit : photos, informations, déclinaisons, stock, ventes et dernières commandes
 export const ProductDetails = ({ id }: { id: string }) => {
   const router = useRouter();
-  const ordersHydrated = useOrdersHydrated();
+  const ordersHydrated = useAllOrdersLoaded();
   const { product, error, retry } = useAdminProduct(id);
   const categories = useAdminCategories();
-  const orders = useOrderStore((s) => s.orders);
+  const orders = useAdminOrdersStore((s) => s.all);
   const sold = useSoldCounts();
   const [deleted, setDeleted] = useState(false);
 

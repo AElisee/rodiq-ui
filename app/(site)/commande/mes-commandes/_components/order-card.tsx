@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 import { toast } from "sonner";
 import {
+  orderDeliveryAddress,
   orderLineKey,
   orderLineName,
   orderStatusDescription,
@@ -20,6 +21,7 @@ import { useCartStore } from "@/lib/stores/cart-store";
 import { useShopProductsById } from "@/lib/stores/shop-store";
 import { useSettingsStore } from "@/lib/stores/settings-store";
 import { cn } from "@/lib/utils";
+import { CancelOrderDialog } from "./cancel-order-dialog";
 
 const Row = ({ label, children }: { label: string; children: ReactNode }) => (
   <div className="flex flex-col gap-1 sm:flex-row sm:justify-between sm:gap-4">
@@ -107,7 +109,7 @@ export const OrderCard = ({ order }: { order: Order }) => {
 
       <dl className="mt-6 flex flex-col gap-4 border-t border-sand pt-6 font-sans text-sm text-cocoa">
         <Row label={pickup ? "Retrait" : "Livraison"}>
-          {pickup ? `Au salon · ${salonAddress}` : delivery.address}
+          {pickup ? `Au salon · ${salonAddress}` : orderDeliveryAddress(order)}
         </Row>
         <Row label="Paiement">
           {payment}
@@ -120,11 +122,22 @@ export const OrderCard = ({ order }: { order: Order }) => {
       <div className="mt-6 border-t border-sand pt-6 font-sans text-sm">
         <p className="text-taupe">{orderStatusDescription(order)}</p>
 
-        {order.status === "annulee" && order.cancellationReason && (
-          <p className="mt-3 rounded-[var(--radius)] bg-sand px-5 py-4 text-cocoa">
-            <span className="block font-serif text-base">Motif</span>
-            {order.cancellationReason}
-          </p>
+        {order.status === "annulee" &&
+          order.cancellationReason &&
+          (order.cancelledBy === "cliente" ? (
+            <p className="mt-3 text-cocoa">Votre motif : {order.cancellationReason}</p>
+          ) : (
+            <p className="mt-3 rounded-[var(--radius)] bg-sand px-5 py-4 text-cocoa">
+              <span className="block font-serif text-base">Motif</span>
+              {order.cancellationReason}
+            </p>
+          ))}
+
+        {order.canCancel && (
+          <div className="mt-5 flex flex-wrap items-center justify-between gap-4">
+            <p className="text-taupe">Annulation en ligne possible tant que la préparation n&apos;a pas commencé.</p>
+            <CancelOrderDialog order={order} />
+          </div>
         )}
 
         {(order.status === "livree" || order.status === "annulee") && available.length > 0 && (

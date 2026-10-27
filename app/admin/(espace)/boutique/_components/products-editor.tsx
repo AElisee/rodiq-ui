@@ -27,7 +27,7 @@ import {
   useAdminCategoriesLoaded,
   useBoutiqueSummary,
 } from "@/lib/stores/admin-boutique-store";
-import { useOrdersHydrated } from "@/lib/stores/order-store";
+import { useAllOrdersLoaded } from "@/lib/stores/admin-orders-store";
 import { cn } from "@/lib/utils";
 import { DeleteProduct, iconButtonClassName } from "./product-actions";
 import { ProductCreateSheet, useSoldCounts, type SoldCounts } from "./product-form";
@@ -94,7 +94,7 @@ const exportRows = (product: AdminProduct, categoryName: string, sold: SoldCount
 // Produits de la boutique : ajout, prix, promotions, déclinaisons, stock et visibilité. Filtres,
 // recherche, tri et pagination faits par l'API
 export const ProductsEditor = () => {
-  const ordersHydrated = useOrdersHydrated();
+  const ordersHydrated = useAllOrdersLoaded();
   const categoriesLoaded = useAdminCategoriesLoaded();
   const categories = useAdminCategories();
   const page = useAdminBoutiqueStore((s) => s.page);

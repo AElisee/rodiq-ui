@@ -2,17 +2,11 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import Link from "next/link";
-import { useEffect, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import { z } from "zod";
-import {
-  FieldError,
-  inputClassName,
-  labelClassName,
-  PhoneInput,
-  Required,
-  submitClassName,
-} from "@/components/forms/form-fields";
+import { toast } from "sonner";
+import { FieldError, inputClassName, labelClassName, Required, submitClassName } from "@/components/forms/form-fields";
 import { ProductVisual } from "@/components/shop/product-visual";
 import {
   Select,
@@ -23,29 +17,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { deliveryFeeFor, generateOrderReference, type Order } from "@/lib/commandes";
+import { errorMessage } from "@/lib/api/client";
+import { deliveryFeeFor, type Order } from "@/lib/commandes";
 import { formatPrice } from "@/lib/prestations";
 import { selectCurrentAccount, useAuthHydrated, useAuthStore } from "@/lib/stores/auth-store";
 import { resolveCartLines, useCartHydrated, useCartStore } from "@/lib/stores/cart-store";
 import { useShopProductsById } from "@/lib/stores/shop-store";
-import { useOrderStore, useOrdersHydrated } from "@/lib/stores/order-store";
+import { useOrderStore } from "@/lib/stores/order-store";
 import { useSettingsHydrated, useSettingsStore } from "@/lib/stores/settings-store";
-import {
-  formatPhone,
-  nameSchema,
-  optionalEmailSchema,
-  phoneSchema,
-  textSchema,
-  withDialCode,
-} from "@/lib/validation";
+import { textSchema } from "@/lib/validation";
 import { OrderConfirmation } from "./order-confirmation";
 
 const checkoutSchema = z
   .object({
-    firstName: nameSchema("Indiquez votre prénom", "Entrer un prénom correct"),
-    lastName: nameSchema("Indiquez votre nom", "Entrer un nom correct"),
-    phone: phoneSchema,
-    email: optionalEmailSchema,
     mode: z.enum(["livraison", "retrait"]),
     commune: z.string(),
     address: z.string().trim().max(200, "200 caractères maximum"),
@@ -61,7 +45,7 @@ const checkoutSchema = z
 
 type CheckoutValues = z.infer<typeof checkoutSchema>;
 
-const LOGIN_HREF = "/connexion?redirect=/commande";
+const REDIRECT = encodeURIComponent("/commande");
 
 const optionClassName =
   "flex cursor-pointer flex-col gap-1 rounded-[var(--radius)] border border-sand p-5 font-sans text-cocoa transition-colors hover:bg-sand has-checked:border-cocoa has-checked:bg-sand has-focus-visible:border-taupe";
@@ -79,11 +63,11 @@ const Step = ({ number, title, children }: { number: number; title: string; chil
   </section>
 );
 
-// Tunnel de commande de la boutique : coordonnées, remise (livraison ou retrait), paiement, puis récapitulatif
+// Tunnel de commande de la boutique : compte, remise (livraison ou retrait), paiement, puis récapitulatif.
+// Commander exige un compte : les coordonnées viennent du compte, prix et frais sont recalculés par l'API
 export const CheckoutFlow = () => {
   const cartHydrated = useCartHydrated();
   const authHydrated = useAuthHydrated();
-  const ordersHydrated = useOrdersHydrated();
   const settingsHydrated = useSettingsHydrated();
   const items = useCartStore((s) => s.items);
   const clearCart = useCartStore((s) => s.clear);
@@ -101,18 +85,12 @@ export const CheckoutFlow = () => {
     register,
     handleSubmit,
     control,
-    reset,
-    getValues,
     formState: { errors, isSubmitting },
   } = useForm<CheckoutValues>({
     resolver: zodResolver(checkoutSchema),
     // Chaque champ est vérifié dès qu'on le quitte, puis à chaque frappe
     mode: "onTouched",
     defaultValues: {
-      firstName: "",
-      lastName: "",
-      phone: "",
-      email: "",
       mode: "livraison",
       commune: "",
       address: "",
@@ -122,22 +100,10 @@ export const CheckoutFlow = () => {
   });
   const values = useWatch({ control });
 
-  // Client(e) connecté(e) : coordonnées pré-remplies depuis le compte (modifiables)
-  useEffect(() => {
-    if (!account) return;
-    reset({
-      ...getValues(),
-      firstName: account.firstName,
-      lastName: account.lastName,
-      phone: formatPhone(account.phone),
-      email: account.email,
-    });
-  }, [account, reset, getValues]);
-
   if (confirmed) return <OrderConfirmation order={confirmed} />;
 
   // Le contenu dépend du navigateur (panier, session) et des produits relus depuis l'API
-  if (!cartHydrated || !authHydrated || !ordersHydrated || !settingsHydrated || productsPending) {
+  if (!cartHydrated || !authHydrated || !settingsHydrated || productsPending) {
     return <div className="min-h-96" aria-hidden />;
   }
 
@@ -193,48 +159,32 @@ export const CheckoutFlow = () => {
   const filled = (value?: string) => !!value?.trim();
   // Ce qu'il reste à compléter avant de pouvoir valider la commande
   const missing = [
-    !(filled(values.firstName) && filled(values.lastName) && filled(values.phone)) && "vos coordonnées",
+    !account && "la connexion à votre compte",
     delivery && !(filled(values.commune) && filled(values.address)) && "l'adresse de livraison",
   ].filter(Boolean);
 
-  const onSubmit = (values: CheckoutValues) => {
-    if (soldOut.length > 0) return;
+  const onSubmit = async (values: CheckoutValues) => {
+    if (soldOut.length > 0 || !account) return;
     const pickup = values.mode === "retrait";
 
-    const order: Order = {
-      id: crypto.randomUUID(),
-      reference: generateOrderReference(),
-      lines: lines.map(({ product, variant, quantity }) => ({
-        productId: product.id,
-        variantId: variant?.id,
-        name: product.name,
-        variantName: variant?.name,
-        unitPrice: product.price,
-        quantity,
-      })),
-      customer: {
-        firstName: values.firstName,
-        lastName: values.lastName,
-        phone: withDialCode(values.phone),
-        email: values.email || undefined,
-      },
-      delivery: pickup
-        ? { mode: "retrait" }
-        : { mode: "livraison", commune: values.commune, address: `${values.address}, ${values.commune}` },
-      deliveryFee: pickup ? 0 : deliveryFeeFor(rates, values.commune),
-      paymentMethod: values.paymentMethod,
-      // Mobile Money : l'équipe confirme la réception du paiement depuis l'admin
-      paid: false,
-      note: values.note || undefined,
-      status: "en_attente",
-      accountId: account?.id,
-      createdAt: new Date().toISOString(),
-    };
-
-    addOrder(order);
-    clearCart();
-    setConfirmed(order);
-    window.scrollTo({ top: 0 });
+    try {
+      const order = await addOrder({
+        lines: lines.map(({ product, variant, quantity }) => ({ productId: product.id, variantId: variant?.id, quantity })),
+        mode: values.mode,
+        commune: pickup ? undefined : values.commune,
+        address: pickup ? undefined : values.address,
+        paymentMethod: values.paymentMethod,
+        // Total affiché : refusé par l'API si un prix ou un frais a changé entre-temps
+        expectedTotal: total,
+        note: values.note.trim() || undefined,
+      });
+      clearCart();
+      setConfirmed(order);
+      window.scrollTo({ top: 0 });
+    } catch (error) {
+      // Les produits sont relus par le store : le récapitulatif montre les prix et quantités à jour
+      toast.error("Votre commande n'a pas été passée", { description: errorMessage(error) });
+    }
   };
 
   return (
@@ -246,76 +196,33 @@ export const CheckoutFlow = () => {
       <div className="flex flex-col gap-12">
         <Step number={1} title="Vos coordonnées">
           {account ? (
-            <p className="mb-8 rounded-[var(--radius)] bg-sand px-5 py-4 font-sans text-sm text-cocoa">
-              Connecté(e) en tant que {account.firstName} {account.lastName} : vos coordonnées sont
-              pré-remplies.{" "}
-              <button type="button" onClick={signOut} className="underline underline-offset-4">
-                Ce n&apos;est pas vous ?
-              </button>
-            </p>
+            <div className="rounded-[var(--radius)] bg-sand px-5 py-4 font-sans text-sm text-cocoa">
+              <p>
+                {account.firstName} {account.lastName} · {account.phone} · {account.email}
+              </p>
+              <p className="mt-2 text-taupe">
+                Coordonnées de votre compte, transmises au salon avec la commande.{" "}
+                <button type="button" onClick={signOut} className="text-cocoa underline underline-offset-4">
+                  Ce n&apos;est pas vous ?
+                </button>
+              </p>
+            </div>
           ) : (
-            <p className="mb-8 rounded-[var(--radius)] border border-sand px-5 py-4 font-sans text-sm text-cocoa">
-              Vous avez un compte ?{" "}
-              <Link href={LOGIN_HREF} className="underline underline-offset-4">
-                Connectez-vous
-              </Link>{" "}
-              pour retrouver vos coordonnées.
-            </p>
+            <div className="rounded-[var(--radius)] border border-sand px-5 py-4 font-sans text-sm text-cocoa">
+              <p>Un compte est nécessaire pour commander et suivre votre commande.</p>
+              <p className="mt-2">
+                <Link href={`/connexion?redirect=${REDIRECT}`} className="underline underline-offset-4">
+                  Connectez-vous
+                </Link>{" "}
+                ou{" "}
+                <Link href={`/inscription?redirect=${REDIRECT}`} className="underline underline-offset-4">
+                  créez votre compte
+                </Link>
+                , votre panier vous attend.
+              </p>
+            </div>
           )}
-
-          <p className="mb-10 font-sans text-sm text-taupe">* champs obligatoires</p>
-
-          <div className="grid gap-6 sm:grid-cols-2">
-            <div>
-              <label htmlFor="firstName" className={labelClassName}>
-                Prénom<Required />
-              </label>
-              <input
-                id="firstName"
-                autoComplete="given-name"
-                aria-required
-                aria-invalid={!!errors.firstName}
-                className={inputClassName}
-                {...register("firstName")}
-              />
-              <FieldError message={errors.firstName?.message} />
-            </div>
-            <div>
-              <label htmlFor="lastName" className={labelClassName}>
-                Nom<Required />
-              </label>
-              <input
-                id="lastName"
-                autoComplete="family-name"
-                aria-required
-                aria-invalid={!!errors.lastName}
-                className={inputClassName}
-                {...register("lastName")}
-              />
-              <FieldError message={errors.lastName?.message} />
-            </div>
-            <div>
-              <label htmlFor="phone" className={labelClassName}>
-                Téléphone<Required />
-              </label>
-              <PhoneInput id="phone" aria-required aria-invalid={!!errors.phone} {...register("phone")} />
-              <FieldError message={errors.phone?.message} />
-            </div>
-            <div>
-              <label htmlFor="email" className={labelClassName}>
-                E-mail
-              </label>
-              <input
-                id="email"
-                type="email"
-                autoComplete="email"
-                aria-invalid={!!errors.email}
-                className={inputClassName}
-                {...register("email")}
-              />
-              <FieldError message={errors.email?.message} />
-            </div>
-          </div>
+          <p className="mt-6 font-sans text-sm text-taupe">* champs obligatoires</p>
         </Step>
 
         <Step number={2} title="Livraison ou retrait">

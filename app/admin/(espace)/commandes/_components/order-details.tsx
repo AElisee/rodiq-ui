@@ -3,7 +3,7 @@
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { Gem, Printer } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { AdminBackLink, DetailNotFound, DetailPanel, DetailRow } from "@/components/admin/admin-detail";
 import { escapeHtml, printDocument } from "@/components/admin/admin-export";
@@ -14,6 +14,7 @@ import {
   adminSmallOutlineButtonClassName,
 } from "@/components/admin/admin-ui";
 import { ProductVisual } from "@/components/shop/product-visual";
+import { errorMessage } from "@/lib/api/client";
 import {
   orderItemCount,
   orderLineKey,
@@ -27,7 +28,7 @@ import {
 import { formatPrice } from "@/lib/prestations";
 import type { Product } from "@/lib/produits";
 import { useAdminBoutiqueStore } from "@/lib/stores/admin-boutique-store";
-import { useOrderStore, useOrdersHydrated } from "@/lib/stores/order-store";
+import { useAdminOrdersStore } from "@/lib/stores/admin-orders-store";
 import { OrderActions } from "./order-actions";
 
 const formatDateTime = (iso: string) => format(new Date(iso), "d MMMM yyyy 'à' HH'h'mm", { locale: fr });
@@ -97,9 +98,11 @@ ${order.cancellationReason ? `<p class="note"><strong>Motif de l'annulation :</s
 
 // Fiche complète d'une commande : articles avec photos, coordonnées, remise, paiement et suivi
 export const OrderDetails = ({ id }: { id: string }) => {
-  const hydrated = useOrdersHydrated();
-  const order = useOrderStore((s) => s.orders.find((o) => o.id === id));
-  const markPaid = useOrderStore((s) => s.markPaid);
+  const order = useAdminOrdersStore((s) => s.details[id]);
+  const error = useAdminOrdersStore((s) => s.detailErrors[id]);
+  const loadOrder = useAdminOrdersStore((s) => s.loadDetail);
+  const markPaid = useAdminOrdersStore((s) => s.markPaid);
+  const [paying, setPaying] = useState(false);
   const details = useAdminBoutiqueStore((s) => s.details);
   const detailErrors = useAdminBoutiqueStore((s) => s.detailErrors);
   const loadDetail = useAdminBoutiqueStore((s) => s.loadDetail);
@@ -110,9 +113,12 @@ export const OrderDetails = ({ id }: { id: string }) => {
   }, [productIds, loadDetail]);
   const products = Object.values(details);
 
-  if (!hydrated) return <div className="min-h-96" aria-hidden />;
+  // Relue à chaque ouverture : la commande a pu changer depuis la liste
+  useEffect(() => {
+    void loadOrder(id);
+  }, [id, loadOrder]);
 
-  if (!order)
+  if (error?.status === 404)
     return (
       <div className="flex flex-col gap-6 pt-6">
         <AdminBackLink href="/admin/commandes">Commandes</AdminBackLink>
@@ -120,12 +126,37 @@ export const OrderDetails = ({ id }: { id: string }) => {
       </div>
     );
 
+  if (error && !order)
+    return (
+      <div className="flex flex-col gap-6 pt-6">
+        <AdminBackLink href="/admin/commandes">Commandes</AdminBackLink>
+        <div role="alert" className="rounded-[var(--radius)] border border-sand p-6 font-sans text-sm text-cocoa">
+          <p className="font-serif text-lg">La commande n&apos;a pas pu être chargée.</p>
+          <p className="mt-2 text-taupe">{error.message}</p>
+          <button type="button" onClick={() => void loadOrder(id)} className="mt-4 underline underline-offset-4">
+            Réessayer
+          </button>
+        </div>
+      </div>
+    );
+
+  if (!order) return <div className="min-h-96" aria-hidden />;
+
   const { customer, delivery } = order;
   const items = orderItemCount(order);
 
-  const handleMarkPaid = () => {
-    markPaid(order.id);
-    toast.success("Paiement enregistré", { description: `${order.reference} · ${formatPrice(orderTotal(order))}` });
+  const handleMarkPaid = async () => {
+    setPaying(true);
+    try {
+      await markPaid(order.id);
+      toast.success("Paiement enregistré", { description: `${order.reference} · ${formatPrice(orderTotal(order))}` });
+    } catch (error) {
+      toast.error(`Le paiement de la commande ${order.reference} n'a pas été enregistré`, {
+        description: errorMessage(error),
+      });
+    } finally {
+      setPaying(false);
+    }
   };
 
   return (
@@ -192,7 +223,11 @@ export const OrderDetails = ({ id }: { id: string }) => {
                 )}
                 {order.cancellationReason && (
                   <p>
-                    <span className="block text-taupe">Motif de l&apos;annulation</span>
+                    <span className="block text-taupe">
+                      {order.cancelledBy === "cliente"
+                        ? "Annulée par le client ou la cliente"
+                        : "Motif de l'annulation (transmis au client ou à la cliente)"}
+                    </span>
                     {order.cancellationReason}
                   </p>
                 )}
@@ -212,14 +247,12 @@ export const OrderDetails = ({ id }: { id: string }) => {
                   {customer.phone}
                 </a>
               </DetailRow>
-              {customer.email && (
-                <DetailRow label="E-mail">
-                  <a href={`mailto:${customer.email}`} className="underline underline-offset-4">
-                    {customer.email}
-                  </a>
-                </DetailRow>
-              )}
-              <DetailRow label="Compte client">{order.accountId ? "Oui" : "Sans compte"}</DetailRow>
+              <DetailRow label="E-mail">
+                <a href={`mailto:${customer.email}`} className="underline underline-offset-4">
+                  {customer.email}
+                </a>
+              </DetailRow>
+              {customer.whatsapp && <DetailRow label="WhatsApp">{customer.whatsapp}</DetailRow>}
             </dl>
           </DetailPanel>
 
@@ -241,7 +274,7 @@ export const OrderDetails = ({ id }: { id: string }) => {
             action={
               !order.paid &&
               order.status !== "annulee" && (
-                <button type="button" onClick={handleMarkPaid} className={adminSmallButtonClassName}>
+                <button type="button" onClick={handleMarkPaid} disabled={paying} className={adminSmallButtonClassName}>
                   Marquer payée
                 </button>
               )
@@ -250,6 +283,7 @@ export const OrderDetails = ({ id }: { id: string }) => {
             <p className="text-sm">
               {paymentMethods.find((m) => m.value === order.paymentMethod)?.label} · {paymentState(order)}
             </p>
+            {order.paidAt && <p className="mt-1 text-xs text-taupe">Encaissée le {formatDateTime(order.paidAt)}</p>}
           </DetailPanel>
         </div>
       </div>

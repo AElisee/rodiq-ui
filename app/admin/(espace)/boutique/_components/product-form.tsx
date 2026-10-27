@@ -34,13 +34,13 @@ import {
   type Measure,
 } from "@/lib/produits";
 import { useAdminBoutiqueStore, useAdminCategories } from "@/lib/stores/admin-boutique-store";
-import { useOrderStore } from "@/lib/stores/order-store";
+import { useAdminOrdersStore } from "@/lib/stores/admin-orders-store";
 
 // Quantités vendues (commandes non annulées) par produit:déclinaison, voir orderLineKey
 export type SoldCounts = Map<string, number>;
 
 export const useSoldCounts = () => {
-  const orders = useOrderStore((s) => s.orders);
+  const orders = useAdminOrdersStore((s) => s.all);
   return useMemo<SoldCounts>(() => {
     const counts: SoldCounts = new Map();
     for (const order of orders) {

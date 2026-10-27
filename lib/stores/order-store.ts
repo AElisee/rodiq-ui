@@ -1,58 +1,99 @@
+import { useEffect } from "react";
 import { create } from "zustand";
-import { createJSONStorage, persist } from "zustand/middleware";
+import { errorMessage, isApiError } from "@/lib/api/client";
+import { type NewOrder, commandesApi } from "@/lib/api/commandes";
 import type { Order } from "@/lib/commandes";
-import { generateDemoOrders } from "@/lib/demo-data";
-import { createHydrationHook } from "./hydration";
+import { selectCurrentAccountId, useAuthHydrated, useAuthStore } from "./auth-store";
+import { useShopStore } from "./shop-store";
 
+// Commandes du compte connecté. Source : l'API (`lib/api/commandes.ts`), qui retire le stock à la création
+// et le rend à l'annulation. Les actions lèvent l'ApiError en cas d'échec (le composant affiche le message).
 type OrderState = {
+  // Commandes du compte `accountId`, la plus récente d'abord
   orders: Order[];
-  add: (order: Order) => void;
-  // Actions de l'admin
-  accept: (id: string) => void;
-  markReady: (id: string) => void;
-  deliver: (id: string) => void;
-  cancel: (id: string, reason: string) => void;
-  markPaid: (id: string) => void;
-  // Rattache à un compte les commandes passées sans compte avec cette adresse e-mail
-  claim: (accountId: string, email: string) => void;
+  // Compte dont les commandes sont chargées (null : rien de chargé)
+  accountId: string | null;
+  // Raison de l'échec de la dernière lecture
+  loadError: string | undefined;
+  load: (accountId: string) => Promise<void>;
+  // Passe la commande pour le compte connecté et renvoie la commande enregistrée
+  add: (order: NewOrder) => Promise<Order>;
+  cancel: (id: string, reason?: string) => Promise<void>;
 };
 
-const update = (orders: Order[], id: string, changes: Partial<Order>) =>
-  orders.map((o) => (o.id === id ? { ...o, ...changes, updatedAt: new Date().toISOString() } : o));
+// Stock, prix et disponibilité des produits concernés ont changé (ou ont pu changer ailleurs) : on les relit
+const reloadProducts = (productIds: string[]) => {
+  for (const id of new Set(productIds)) void useShopStore.getState().loadProduct(id);
+};
 
-// Commandes de la boutique traitées par l'admin (maquette : conservées dans le navigateur en attendant l'API).
-// Le stock des produits est tenu par l'API : il ne bougera qu'avec le module de commandes du serveur, qui
-// le décrémentera à la création et le rendra à l'annulation dans la même transaction.
-// Hydratation manuelle (skipHydration) pour éviter un écart serveur / client.
-export const useOrderStore = create<OrderState>()(
-  persist(
-    (set, get) => ({
-      orders: generateDemoOrders(),
-      add: (order) => set((s) => ({ orders: [order, ...s.orders] })),
-      accept: (id) => set((s) => ({ orders: update(s.orders, id, { status: "en_preparation" }) })),
-      markReady: (id) => set((s) => ({ orders: update(s.orders, id, { status: "prete" }) })),
-      // La remise vaut encaissement pour un paiement en espèces
-      deliver: (id) => set((s) => ({ orders: update(s.orders, id, { status: "livree", paid: true }) })),
-      cancel: (id, reason) => {
-        const order = get().orders.find((o) => o.id === id);
-        if (!order || order.status === "annulee") return;
-        set((s) => ({ orders: update(s.orders, id, { status: "annulee", cancellationReason: reason }) }));
-      },
-      markPaid: (id) => set((s) => ({ orders: update(s.orders, id, { paid: true }) })),
-      claim: (accountId, email) =>
-        set((s) => ({
-          orders: s.orders.map((o) =>
-            !o.accountId && o.customer.email?.toLowerCase() === email ? { ...o, accountId } : o,
-          ),
-        })),
-    }),
-    {
-      name: "rodiq-orders",
-      storage: createJSONStorage(() => localStorage),
-      skipHydration: true,
+export const useOrderStore = create<OrderState>()((set, get) => {
+  // Refus du serveur (stock, prix, frais ou statut changés) : la liste a pu changer ailleurs, on la relit
+  const refreshAfterRefusal = (error: unknown, productIds: string[]) => {
+    if (isApiError(error, 400) || isApiError(error, 404) || isApiError(error, 409)) {
+      reloadProducts(productIds);
+      const { accountId } = get();
+      if (accountId) void get().load(accountId);
+    }
+  };
+
+  return {
+    orders: [],
+    accountId: null,
+    loadError: undefined,
+    load: async (accountId) => {
+      try {
+        const orders = await commandesApi.mine();
+        set({ orders, accountId, loadError: undefined });
+      } catch (error) {
+        console.error("Lecture des commandes impossible", error);
+        set({ orders: [], accountId, loadError: errorMessage(error) });
+      }
     },
-  ),
-);
+    add: async (data) => {
+      const productIds = data.lines.map((line) => line.productId);
+      try {
+        const order = await commandesApi.create(data);
+        set((s) => ({ orders: [order, ...s.orders] }));
+        reloadProducts(productIds);
+        return order;
+      } catch (error) {
+        refreshAfterRefusal(error, productIds);
+        throw error;
+      }
+    },
+    cancel: async (id, reason) => {
+      const productIds = get().orders.find((o) => o.id === id)?.lines.map((line) => line.productId) ?? [];
+      try {
+        const updated = await commandesApi.cancel(id, reason);
+        set((s) => ({ orders: s.orders.map((o) => (o.id === id ? updated : o)) }));
+        reloadProducts(productIds);
+      } catch (error) {
+        refreshAfterRefusal(error, productIds);
+        throw error;
+      }
+    },
+  };
+});
 
-// Vrai une fois les commandes relues depuis le localStorage
-export const useOrdersHydrated = createHydrationHook(useOrderStore);
+// Commandes du compte connecté, relues quand le compte change (connexion, déconnexion).
+// `loaded` est vrai sans session (rien à lire) ou une fois les commandes du compte lues
+export const useMyOrders = () => {
+  const authHydrated = useAuthHydrated();
+  const accountId = useAuthStore(selectCurrentAccountId);
+  const loadedFor = useOrderStore((s) => s.accountId);
+  const orders = useOrderStore((s) => s.orders);
+  const loadError = useOrderStore((s) => s.loadError);
+  const current = !!accountId && loadedFor === accountId;
+
+  useEffect(() => {
+    if (accountId && loadedFor !== accountId) void useOrderStore.getState().load(accountId);
+  }, [accountId, loadedFor]);
+
+  return {
+    loaded: authHydrated && (!accountId || current),
+    signedIn: !!accountId,
+    orders: current ? orders : [],
+    loadError: current ? loadError : undefined,
+    reload: () => (accountId ? useOrderStore.getState().load(accountId) : Promise.resolve()),
+  };
+};

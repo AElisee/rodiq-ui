@@ -5,7 +5,7 @@ export const metadata: Metadata = {
   title: "Commande",
 };
 
-// Identifiant connu du navigateur seulement (données en localStorage) : rendu à la demande
+// Commande lue par le navigateur avec la session admin (cookie) : rendu à la demande
 export const instant = false;
 
 const AdminOrderPage = async ({ params }: { params: Promise<{ id: string }> }) => {

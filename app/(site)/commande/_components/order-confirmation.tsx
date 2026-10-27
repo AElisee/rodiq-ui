@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { orderLineKey, orderLineName, orderTotal, type Order } from "@/lib/commandes";
+import { orderDeliveryAddress, orderLineKey, orderLineName, orderTotal, type Order } from "@/lib/commandes";
 import { formatPrice } from "@/lib/prestations";
 import { useSettingsStore } from "@/lib/stores/settings-store";
 
@@ -55,7 +55,7 @@ export const OrderConfirmation = ({ order }: { order: Order }) => {
 
         <dl className="mt-6 flex flex-col gap-4 font-sans text-sm text-cocoa">
           <Row label={pickup ? "Retrait" : "Livraison"}>
-            {pickup ? `Au salon · ${salonAddress}` : delivery.address}
+            {pickup ? `Au salon · ${salonAddress}` : orderDeliveryAddress(order)}
           </Row>
           <Row label="Paiement">
             {order.paymentMethod === "mobile_money" ? "Mobile Money" : pickup ? "Espèces au retrait" : "Espèces à la livraison"}

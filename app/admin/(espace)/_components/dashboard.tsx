@@ -26,7 +26,7 @@ import {
   toDateKey,
   type ReservationStatus,
 } from "@/lib/reservations";
-import { useOrderStore, useOrdersHydrated } from "@/lib/stores/order-store";
+import { useAdminOrdersStore, useAllOrdersLoaded } from "@/lib/stores/admin-orders-store";
 import { useAdminReservationsStore, useAllReservationsLoaded } from "@/lib/stores/admin-reservations-store";
 import { useVisitStore, useVisitsHydrated } from "@/lib/stores/visit-store";
 
@@ -72,12 +72,14 @@ const tooltip = (
 export const Dashboard = () => {
   const reservationsHydrated = useAllReservationsLoaded();
   const visitsHydrated = useVisitsHydrated();
-  const ordersHydrated = useOrdersHydrated();
+  const ordersHydrated = useAllOrdersLoaded();
   const reservations = useAdminReservationsStore((s) => s.all);
   const reservationsError = useAdminReservationsStore((s) => s.allError);
   const reloadReservations = useAdminReservationsStore((s) => s.loadAll);
   const visits = useVisitStore((s) => s.days);
-  const orders = useOrderStore((s) => s.orders);
+  const orders = useAdminOrdersStore((s) => s.all);
+  const ordersError = useAdminOrdersStore((s) => s.allError);
+  const reloadOrders = useAdminOrdersStore((s) => s.loadAll);
   const [period, setPeriod] = useState<StatsPeriod>("jour");
   const [status, setStatus] = useState<ReservationStatus | null>(null);
 
@@ -97,6 +99,18 @@ export const Dashboard = () => {
         <p className="font-serif text-lg">Les réservations n&apos;ont pas pu être chargées.</p>
         <p className="mt-2 text-taupe">{reservationsError}</p>
         <button type="button" onClick={() => void reloadReservations()} className="mt-4 underline underline-offset-4">
+          Réessayer
+        </button>
+      </div>
+    );
+  }
+
+  if (ordersError) {
+    return (
+      <div role="alert" className="rounded-[var(--radius)] border border-sand p-6 font-sans text-sm text-cocoa">
+        <p className="font-serif text-lg">Les commandes n&apos;ont pas pu être chargées.</p>
+        <p className="mt-2 text-taupe">{ordersError}</p>
+        <button type="button" onClick={() => void reloadOrders()} className="mt-4 underline underline-offset-4">
           Réessayer
         </button>
       </div>

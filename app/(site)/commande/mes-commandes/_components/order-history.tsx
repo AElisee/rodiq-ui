@@ -3,8 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { orderFilterLabels, type OrderStatus } from "@/lib/commandes";
-import { selectCurrentAccountId, useAuthHydrated, useAuthStore } from "@/lib/stores/auth-store";
-import { useOrderStore, useOrdersHydrated } from "@/lib/stores/order-store";
+import { useMyOrders } from "@/lib/stores/order-store";
 import { cn } from "@/lib/utils";
 import { OrderCard } from "./order-card";
 
@@ -18,20 +17,32 @@ const filters: { value: OrderStatus | null; label: string }[] = [
 
 // Historique des commandes de la boutique, filtrable par statut
 export const OrderHistory = () => {
-  const hydrated = useOrdersHydrated();
-  const authHydrated = useAuthHydrated();
-  const accountId = useAuthStore(selectCurrentAccountId);
-  const allOrders = useOrderStore((s) => s.orders);
+  const { loaded, signedIn, orders, loadError, reload } = useMyOrders();
   const [status, setStatus] = useState<OrderStatus | null>(null);
 
-  // Les commandes sont relues depuis le navigateur : rien à afficher côté serveur
-  if (!hydrated || !authHydrated) return <div className="min-h-64" aria-hidden />;
+  // Session et commandes lues depuis l'API : rien à afficher côté serveur
+  if (!loaded) return <div className="min-h-64" aria-hidden />;
 
-  // Avec un compte : ses commandes ; sinon celles passées sans compte sur ce navigateur.
-  // Les commandes de démonstration sans compte ne concernent pas ce navigateur.
-  const orders = allOrders.filter(
-    (o) => (o.accountId ?? null) === accountId && (accountId || !o.id.startsWith("seed-")),
-  );
+  // Sans compte, pas de commande : le bandeau au-dessus invite à se connecter
+  if (!signedIn) return null;
+
+  if (loadError) {
+    return (
+      <div role="alert" className="flex flex-col items-center py-12 text-center">
+        <p className="font-serif text-[clamp(1.25rem,2vw,1.75rem)] text-cocoa">
+          Vos commandes n&apos;ont pas pu être chargées.
+        </p>
+        <p className="mt-3 max-w-md font-sans text-sm text-taupe">{loadError}</p>
+        <button
+          type="button"
+          onClick={() => void reload()}
+          className="mt-8 inline-flex h-12 items-center justify-center rounded-full bg-blush px-8 font-sans text-base text-cocoa transition-colors hover:bg-sand"
+        >
+          Réessayer
+        </button>
+      </div>
+    );
+  }
 
   if (orders.length === 0) {
     return (
@@ -55,10 +66,8 @@ export const OrderHistory = () => {
   const count = (value: OrderStatus | null) =>
     value ? orders.filter((o) => o.status === value).length : orders.length;
 
-  // Commandes les plus récentes en premier
-  const visible = orders
-    .filter((o) => !status || o.status === status)
-    .toSorted((a, b) => b.createdAt.localeCompare(a.createdAt));
+  // Commandes les plus récentes en premier (ordre de l'API)
+  const visible = orders.filter((o) => !status || o.status === status);
 
   return (
     <>

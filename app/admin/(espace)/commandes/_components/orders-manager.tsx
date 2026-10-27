@@ -4,7 +4,7 @@ import Link from "next/link";
 import { format, subDays } from "date-fns";
 import { fr } from "date-fns/locale";
 import { Search } from "lucide-react";
-import { useDeferredValue, useState } from "react";
+import { useDeferredValue, useEffect, useState } from "react";
 import {
   ADMIN_PAGE_SIZE,
   AdminPageHeader,
@@ -14,14 +14,15 @@ import {
   OrderStatusBadge,
   adminInputClassName,
   adminSmallOutlineButtonClassName,
-  normalizeSearch,
 } from "@/components/admin/admin-ui";
 import { detailLinkClassName } from "@/components/admin/admin-detail";
-import { AdminExportButtons, type ExportTable } from "@/components/admin/admin-export";
+import { AdminExportButtons } from "@/components/admin/admin-export";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import type { OrdersQuery, OrdersSort } from "@/lib/api/commandes";
 import {
   deliveryModes,
   isOpenOrder,
+  orderDeliveryAddress,
   orderItemCount,
   orderStatusLabel,
   orderLineName,
@@ -33,15 +34,11 @@ import {
   type OrderStatus,
 } from "@/lib/commandes";
 import { formatPrice } from "@/lib/prestations";
-import { useOrderStore, useOrdersHydrated } from "@/lib/stores/order-store";
+import { useAdminOrdersStore, useAllOrdersLoaded } from "@/lib/stores/admin-orders-store";
 import { OrderActions } from "./order-actions";
 
-// « en_cours » regroupe les commandes qui attendent encore une action
-type StatusFilter = OrderStatus | "en_cours" | "all";
-
-const statusFilters: { value: StatusFilter; label: string }[] = [
-  { value: "en_cours", label: "En cours" },
-  { value: "all", label: "Tous les statuts" },
+const statusFilters: { value: OrderStatus | null; label: string }[] = [
+  { value: null, label: "Tous les statuts" },
   ...(Object.keys(orderStatusMeta) as OrderStatus[]).map((value) => ({
     value,
     label: orderStatusMeta[value].label,
@@ -53,20 +50,18 @@ const modeFilters: { value: DeliveryMode | "all"; label: string }[] = [
   ...deliveryModes,
 ];
 
-type PaymentFilter = "all" | "payees" | "a-encaisser";
+type PaymentFilter = NonNullable<OrdersQuery["payment"]>;
 
-const paymentFilters: { value: PaymentFilter; label: string }[] = [
+const paymentFilters: { value: PaymentFilter | "all"; label: string }[] = [
   { value: "all", label: "Tous les paiements" },
   { value: "payees", label: "Payées" },
   { value: "a-encaisser", label: "À encaisser" },
 ];
 
-type SortOrder = "recentes" | "anciennes" | "montant" | "nom";
-
-const sortOptions: { value: SortOrder; label: string }[] = [
+const sortOptions: { value: OrdersSort; label: string }[] = [
   { value: "recentes", label: "Plus récentes" },
   { value: "anciennes", label: "Plus anciennes" },
-  { value: "montant", label: "Montant" },
+  { value: "total-desc", label: "Montant" },
   { value: "nom", label: "Nom" },
 ];
 
@@ -80,21 +75,45 @@ const StatTile = ({ label, value, hint }: { label: string; value: string; hint: 
 
 const customerName = (o: Order) => `${o.customer.firstName} ${o.customer.lastName}`;
 
-// Liste des commandes de la boutique : indicateurs, filtres, recherche et suivi (préparer, expédier, remettre, annuler)
-export const OrdersManager = () => {
-  const hydrated = useOrdersHydrated();
-  const orders = useOrderStore((s) => s.orders);
-  const [status, setStatus] = useState<StatusFilter>("en_cours");
-  const [mode, setMode] = useState<DeliveryMode | "all">("all");
-  const [payment, setPayment] = useState<PaymentFilter>("all");
-  const [sort, setSort] = useState<SortOrder>("recentes");
-  const [query, setQuery] = useState("");
-  const [page, setPage] = useState(1);
-  const search = normalizeSearch(useDeferredValue(query));
+const exportHeaders = ["Référence", "Date", "Client(e)", "Téléphone", "E-mail", "Articles", "Remise", "Adresse", "Livraison (FCFA)", "Total (FCFA)", "Paiement", "Payée", "Statut", "Note"];
 
-  if (!hydrated) return <div className="min-h-96" aria-hidden />;
+const exportRow = (o: Order) => [
+  o.reference,
+  format(new Date(o.createdAt), "yyyy-MM-dd HH:mm"),
+  customerName(o),
+  o.customer.phone,
+  o.customer.email,
+  o.lines.map((l) => `${orderLineName(l)} × ${l.quantity}`).join(", "),
+  deliveryModes.find((m) => m.value === o.delivery.mode)?.label ?? "",
+  orderDeliveryAddress(o),
+  o.deliveryFee,
+  orderTotal(o),
+  paymentMethods.find((m) => m.value === o.paymentMethod)?.label ?? "",
+  o.paid ? "Oui" : "Non",
+  orderStatusLabel(o),
+  o.note ?? "",
+];
 
-  // Indicateurs, calculés sur toutes les commandes
+// Indicateurs calculés sur toutes les commandes (lues page après page)
+const OrderStats = () => {
+  const loaded = useAllOrdersLoaded();
+  const orders = useAdminOrdersStore((s) => s.all);
+  const allError = useAdminOrdersStore((s) => s.allError);
+  const loadAll = useAdminOrdersStore((s) => s.loadAll);
+
+  if (!loaded) return <div className="h-28" aria-hidden />;
+
+  // Jamais de chiffres à zéro à la place d'une lecture échouée
+  if (allError)
+    return (
+      <div role="alert" className="rounded-[var(--radius)] border border-sand p-4 font-sans text-sm text-cocoa">
+        Les indicateurs n&apos;ont pas pu être calculés : {allError}{" "}
+        <button type="button" onClick={() => void loadAll()} className="underline underline-offset-4">
+          Réessayer
+        </button>
+      </div>
+    );
+
   const monthStart = subDays(new Date(), 30).toISOString();
   const toProcess = orders.filter((o) => o.status === "en_attente").length;
   const inProgress = orders.filter((o) => o.status === "en_preparation" || o.status === "prete").length;
@@ -103,61 +122,69 @@ export const OrdersManager = () => {
     .filter((o) => o.status === "livree" && o.createdAt >= monthStart)
     .reduce((sum, o) => sum + orderTotal(o), 0);
 
-  const matches = (o: Order) =>
-    !search ||
-    normalizeSearch(
-      `${customerName(o)} ${o.customer.phone} ${o.customer.email ?? ""} ${o.reference} ${o.delivery.commune ?? ""}`,
-    ).includes(search);
-  const inStatus = (o: Order, value: StatusFilter) =>
-    value === "all" || (value === "en_cours" ? isOpenOrder(o.status) : o.status === value);
-
-  const base = orders.filter(
-    (o) =>
-      matches(o) &&
-      (mode === "all" || o.delivery.mode === mode) &&
-      (payment === "all" || (payment === "payees" ? o.paid : !o.paid && o.status !== "annulee")),
+  return (
+    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <StatTile label="À traiter" value={String(toProcess)} hint="Nouvelles commandes" />
+      <StatTile label="En cours" value={String(inProgress)} hint="En préparation ou en route" />
+      <StatTile
+        label="À encaisser"
+        value={formatPrice(unpaid.reduce((sum, o) => sum + orderTotal(o), 0))}
+        hint={`${unpaid.length} commande${unpaid.length > 1 ? "s" : ""} en cours`}
+      />
+      <StatTile label="Chiffre d'affaires" value={formatPrice(revenue)} hint="Commandes remises, 30 derniers jours" />
+    </div>
   );
-  const count = (value: StatusFilter) => base.filter((o) => inStatus(o, value)).length;
+};
 
-  const filtered = base
-    .filter((o) => inStatus(o, status))
-    .toSorted((a, b) => {
-      if (sort === "anciennes") return a.createdAt.localeCompare(b.createdAt);
-      if (sort === "montant") return orderTotal(b) - orderTotal(a);
-      if (sort === "nom")
-        return `${a.customer.lastName} ${a.customer.firstName}`.localeCompare(`${b.customer.lastName} ${b.customer.firstName}`, "fr");
-      return b.createdAt.localeCompare(a.createdAt);
-    });
+// Liste des commandes de la boutique : filtres, recherche, tri et pagination faits par l'API ; suivi
+// (préparer, expédier, remettre, annuler)
+export const OrdersManager = () => {
+  const page = useAdminOrdersStore((s) => s.page);
+  const pageError = useAdminOrdersStore((s) => s.pageError);
+  const loadPage = useAdminOrdersStore((s) => s.loadPage);
+  const fetchMatching = useAdminOrdersStore((s) => s.fetchMatching);
+  const [status, setStatus] = useState<OrderStatus | null>("en_attente");
+  const [mode, setMode] = useState<DeliveryMode | "all">("all");
+  const [payment, setPayment] = useState<PaymentFilter | "all">("all");
+  const [sort, setSort] = useState<OrdersSort>("recentes");
+  const [query, setQuery] = useState("");
+  const [pageNumber, setPageNumber] = useState(1);
+  const search = useDeferredValue(query);
 
-  const exportTable: ExportTable = {
+  const filters: OrdersQuery = {
+    status,
+    payment: payment === "all" ? null : payment,
+    mode: mode === "all" ? null : mode,
+    search,
+    sort,
+    page: pageNumber,
+    pageSize: ADMIN_PAGE_SIZE,
+  };
+  const filtersKey = JSON.stringify(filters);
+
+  useEffect(() => {
+    void loadPage(JSON.parse(filtersKey) as OrdersQuery);
+  }, [filtersKey, loadPage]);
+
+  if (!page && !pageError) return <div className="min-h-96" aria-hidden />;
+
+  const count = (value: OrderStatus | null) =>
+    !page ? 0 : value ? page.countByStatus[value] : Object.values(page.countByStatus).reduce((a, b) => a + b, 0);
+
+  const pageCount = page ? Math.ceil(page.total / ADMIN_PAGE_SIZE) : 0;
+  const currentPage = page?.page ?? pageNumber;
+  const visible = page?.orders ?? [];
+
+  const loadExport = async () => ({
     title: "Commandes",
     filename: "commandes",
-    headers: ["Référence", "Date", "Client(e)", "Téléphone", "E-mail", "Articles", "Remise", "Adresse", "Livraison (FCFA)", "Total (FCFA)", "Paiement", "Payée", "Statut", "Note"],
-    rows: filtered.map((o) => [
-      o.reference,
-      format(new Date(o.createdAt), "yyyy-MM-dd HH:mm"),
-      customerName(o),
-      o.customer.phone,
-      o.customer.email ?? "",
-      o.lines.map((l) => `${orderLineName(l)} × ${l.quantity}`).join(", "),
-      deliveryModes.find((m) => m.value === o.delivery.mode)?.label ?? "",
-      o.delivery.address ?? "",
-      o.deliveryFee,
-      orderTotal(o),
-      paymentMethods.find((m) => m.value === o.paymentMethod)?.label ?? "",
-      o.paid ? "Oui" : "Non",
-      orderStatusLabel(o),
-      o.note ?? "",
-    ]),
-  };
-
-  const pageCount = Math.ceil(filtered.length / ADMIN_PAGE_SIZE);
-  const currentPage = Math.min(page, Math.max(pageCount, 1));
-  const visible = filtered.slice((currentPage - 1) * ADMIN_PAGE_SIZE, currentPage * ADMIN_PAGE_SIZE);
+    headers: exportHeaders,
+    rows: (await fetchMatching(filters)).map(exportRow),
+  });
 
   const resetPage = <T,>(setter: (value: T) => void) => (value: T) => {
     setter(value);
-    setPage(1);
+    setPageNumber(1);
   };
 
   return (
@@ -166,19 +193,10 @@ export const OrdersManager = () => {
         title="Commandes"
         description="Acceptez les commandes de la boutique, préparez-les puis suivez leur remise."
       >
-        <AdminExportButtons table={exportTable} />
+        <AdminExportButtons count={page?.total ?? 0} load={loadExport} />
       </AdminPageHeader>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatTile label="À traiter" value={String(toProcess)} hint="Nouvelles commandes" />
-        <StatTile label="En cours" value={String(inProgress)} hint="En préparation ou en route" />
-        <StatTile
-          label="À encaisser"
-          value={formatPrice(unpaid.reduce((sum, o) => sum + orderTotal(o), 0))}
-          hint={`${unpaid.length} commande${unpaid.length > 1 ? "s" : ""} en cours`}
-        />
-        <StatTile label="Chiffre d'affaires" value={formatPrice(revenue)} hint="Commandes remises, 30 derniers jours" />
-      </div>
+      <OrderStats />
 
       <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
         <div className="relative w-full xl:max-w-xs">
@@ -187,7 +205,7 @@ export const OrdersManager = () => {
             type="search"
             value={query}
             onChange={(e) => resetPage(setQuery)(e.target.value)}
-            placeholder="Nom, téléphone, commune ou référence"
+            placeholder="Nom, téléphone, e-mail ou référence"
             aria-label="Rechercher une commande"
             className={`${adminInputClassName} pl-10`}
           />
@@ -195,10 +213,10 @@ export const OrdersManager = () => {
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:w-auto">
           <AdminSelect
             label="Filtrer par statut"
-            value={status}
-            onValueChange={resetPage(setStatus)}
+            value={status ?? "all"}
+            onValueChange={(v) => resetPage(setStatus)(v === "all" ? null : (v as OrderStatus))}
             options={statusFilters.map((filter) => ({
-              value: filter.value,
+              value: filter.value ?? "all",
               label: `${filter.label} (${count(filter.value)})`,
             }))}
             className="xl:w-48"
@@ -209,7 +227,15 @@ export const OrdersManager = () => {
         </div>
       </div>
 
-      {visible.length > 0 ? (
+      {pageError ? (
+        <div role="alert" className="rounded-[var(--radius)] border border-sand p-6 font-sans text-sm text-cocoa">
+          <p className="font-serif text-lg">Les commandes n&apos;ont pas pu être chargées.</p>
+          <p className="mt-2 text-taupe">{pageError}</p>
+          <button type="button" onClick={() => void loadPage(filters)} className="mt-4 underline underline-offset-4">
+            Réessayer
+          </button>
+        </div>
+      ) : visible.length > 0 ? (
         <>
           <div className="rounded-[var(--radius)] border border-sand">
             <Table className="font-sans text-cocoa">
@@ -273,7 +299,7 @@ export const OrdersManager = () => {
               </TableBody>
             </Table>
           </div>
-          <AdminPager page={currentPage} pageCount={pageCount} onPageChange={setPage} />
+          <AdminPager page={currentPage} pageCount={pageCount} onPageChange={setPageNumber} />
         </>
       ) : (
         <div className="flex flex-col items-center rounded-[var(--radius)] border border-sand py-16 text-center">
@@ -281,10 +307,11 @@ export const OrdersManager = () => {
           <button
             type="button"
             onClick={() => {
-              setStatus("all");
+              setStatus(null);
               setMode("all");
               setPayment("all");
               setQuery("");
+              setPageNumber(1);
             }}
             className={`mt-6 ${adminSmallOutlineButtonClassName}`}
           >
