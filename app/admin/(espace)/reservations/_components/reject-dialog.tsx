@@ -16,8 +16,9 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { errorMessage } from "@/lib/api/client";
 import { formatDay, formatSlotTime, type Reservation } from "@/lib/reservations";
-import { useReservationStore } from "@/lib/stores/reservation-store";
+import { useAdminReservationsStore } from "@/lib/stores/admin-reservations-store";
 
 // Suggestions de motifs, modifiables avant l'envoi
 const presetReasons = [
@@ -28,18 +29,28 @@ const presetReasons = [
 
 // Refus d'une réservation : le motif est obligatoire et affiché à la cliente
 export const RejectDialog = ({ reservation }: { reservation: Reservation }) => {
-  const reject = useReservationStore((s) => s.reject);
+  const reject = useAdminReservationsStore((s) => s.reject);
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState("");
+  const [pending, setPending] = useState(false);
   const valid = reason.trim().length >= 5;
 
-  const confirm = () => {
-    reject(reservation.id, reason.trim());
-    setOpen(false);
-    setReason("");
-    toast("Réservation refusée", {
-      description: `${reservation.client.firstName} ${reservation.client.lastName} · ${reservation.reference}`,
-    });
+  const confirm = async () => {
+    setPending(true);
+    try {
+      await reject(reservation.id, reason.trim());
+      setOpen(false);
+      setReason("");
+      toast("Réservation refusée", {
+        description: `${reservation.client.firstName} ${reservation.client.lastName} · ${reservation.reference}`,
+      });
+    } catch (error) {
+      toast.error(`La réservation ${reservation.reference} n'a pas été refusée`, {
+        description: errorMessage(error),
+      });
+    } finally {
+      setPending(false);
+    }
   };
 
   return (
@@ -80,7 +91,7 @@ export const RejectDialog = ({ reservation }: { reservation: Reservation }) => {
           rows={3}
           value={reason}
           onChange={(e) => setReason(e.target.value)}
-          maxLength={300}
+          maxLength={500}
           aria-required
           className={adminTextareaClassName}
         />
@@ -91,7 +102,7 @@ export const RejectDialog = ({ reservation }: { reservation: Reservation }) => {
               Annuler
             </button>
           </DialogClose>
-          <button type="button" onClick={confirm} disabled={!valid} className={`w-full sm:w-auto ${adminButtonClassName}`}>
+          <button type="button" onClick={confirm} disabled={!valid || pending} className={`w-full sm:w-auto ${adminButtonClassName}`}>
             Confirmer le refus
           </button>
         </div>

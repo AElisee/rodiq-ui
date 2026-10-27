@@ -5,10 +5,8 @@ import { Calendar } from "@/components/ui/calendar";
 import { formatDay, formatSlotTime, toDateKey, type Slot } from "@/lib/reservations";
 import { cn } from "@/lib/utils";
 
-export type SlotAvailability = Slot & { remaining: number | null }; // null = illimité
-
 type SlotPickerProps = {
-  slots: SlotAvailability[];
+  slots: Slot[];
   day: string | undefined;
   onDayChange: (day: string) => void;
   slotId: string | undefined;

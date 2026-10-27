@@ -10,6 +10,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { errorMessage } from "@/lib/api/client";
 import { formatDay, formatSlotTime, type Reservation } from "@/lib/reservations";
 import { useReservationStore } from "@/lib/stores/reservation-store";
 
@@ -18,11 +19,21 @@ export const CancelDialog = ({ reservation }: { reservation: Reservation }) => {
   const cancel = useReservationStore((s) => s.cancel);
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState("");
+  const [pending, setPending] = useState(false);
 
-  const confirm = () => {
-    cancel(reservation.id, reason.trim() || undefined);
-    setOpen(false);
-    toast("Réservation annulée", { description: `Référence ${reservation.reference}` });
+  const confirm = async () => {
+    setPending(true);
+    try {
+      await cancel(reservation.id, reason.trim() || undefined);
+      setOpen(false);
+      toast("Réservation annulée", { description: `Référence ${reservation.reference}` });
+    } catch (error) {
+      toast.error(`La réservation ${reservation.reference} n'a pas été annulée`, {
+        description: errorMessage(error),
+      });
+    } finally {
+      setPending(false);
+    }
   };
 
   return (
@@ -54,7 +65,7 @@ export const CancelDialog = ({ reservation }: { reservation: Reservation }) => {
           rows={3}
           value={reason}
           onChange={(e) => setReason(e.target.value)}
-          maxLength={300}
+          maxLength={500}
           className="w-full rounded-[var(--radius)] border border-sand bg-pearl px-5 py-3 text-base outline-none transition-colors placeholder:text-taupe focus-visible:border-taupe"
         />
 
@@ -67,6 +78,7 @@ export const CancelDialog = ({ reservation }: { reservation: Reservation }) => {
           <button
             type="button"
             onClick={confirm}
+            disabled={pending}
             className="inline-flex h-12 w-full items-center justify-center rounded-full bg-blush px-6 text-base text-cocoa transition-colors hover:bg-sand sm:w-auto"
           >
             Confirmer l&apos;annulation

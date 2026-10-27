@@ -33,4 +33,15 @@ export const endpoints = {
     creation: "/admin/prestations",
     prestation: (id: string) => `/admin/prestations/${encodeURIComponent(id)}`,
   },
+  reservations: {
+    creneaux: "/creneaux",
+    creation: "/reservations",
+    miennes: "/me/reservations",
+    annulation: (id: string) => `/me/reservations/${encodeURIComponent(id)}/annuler`,
+    liste: "/admin/reservations",
+    detail: (id: string) => `/admin/reservations/${encodeURIComponent(id)}`,
+    confirmation: (id: string) => `/admin/reservations/${encodeURIComponent(id)}/confirmer`,
+    refus: (id: string) => `/admin/reservations/${encodeURIComponent(id)}/refuser`,
+    fin: (id: string) => `/admin/reservations/${encodeURIComponent(id)}/terminer`,
+  },
 } as const;

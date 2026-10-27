@@ -1,134 +1,96 @@
-import { addDays, format } from "date-fns";
+import { useEffect } from "react";
 import { create } from "zustand";
-import { createJSONStorage, persist } from "zustand/middleware";
-import { generateDemoReservations } from "@/lib/demo-data";
-import { allPrestations } from "@/lib/prestations";
-import { toReservationLines, type Reservation } from "@/lib/reservations";
-import { createHydrationHook } from "./hydration";
+import { errorMessage, isApiError } from "@/lib/api/client";
+import { type NewReservation, reservationsApi } from "@/lib/api/reservations";
+import type { Reservation } from "@/lib/reservations";
+import { selectCurrentAccountId, useAuthHydrated, useAuthStore } from "./auth-store";
+import { useSlotsStore } from "./slots-store";
 
+// Réservations de la cliente connectée. Source : l'API (`lib/api/reservations.ts`).
+// Les actions lèvent l'ApiError en cas d'échec (le composant affiche le message).
 type ReservationState = {
+  // Réservations du compte `accountId`, rendez-vous le plus récent d'abord
   reservations: Reservation[];
-  add: (reservation: Reservation) => void;
-  cancel: (id: string, reason?: string) => void;
-  // Actions de l'admin
-  confirm: (id: string) => void;
-  reject: (id: string, reason: string) => void;
-  complete: (id: string) => void;
-  // Rattache à un compte les réservations faites sans compte avec cette adresse e-mail
-  claim: (accountId: string, email: string) => void;
+  // Compte dont les réservations sont chargées (null : rien de chargé)
+  accountId: string | null;
+  // Raison de l'échec de la dernière lecture
+  loadError: string | undefined;
+  load: (accountId: string) => Promise<void>;
+  // Crée la demande pour la cliente connectée et renvoie la réservation enregistrée
+  add: (reservation: NewReservation) => Promise<Reservation>;
+  cancel: (id: string, reason?: string) => Promise<void>;
 };
 
-// Données de démonstration : un historique avec chaque statut traité par l'admin
-const day = (offset: number) => format(addDays(new Date(), offset), "yyyy-MM-dd");
-const demoClient = {
-  firstName: "Aïcha",
-  lastName: "Koné",
-  phone: "+225 07 00 00 00 00",
-  contactChannel: "whatsapp" as const,
-};
-const demoReservations: Reservation[] = [
-  {
-    id: "demo-3",
-    reference: "RDQ-H9XC3B",
-    prestationIds: ["vernis-permanent-mains", "pose-pieds"],
-    lines: [
-      { prestationId: "vernis-permanent-mains", name: "Vernis permanent mains", price: 5000 },
-      { prestationId: "pose-pieds", name: "Pose pieds", price: 4000 },
-    ],
-    slotId: `${day(9)}_11:00`,
-    date: day(9),
-    start: "11:00",
-    end: "13:00",
-    client: demoClient,
-    status: "confirmee",
-    accountRequested: false,
-    accountId: "demo-account",
-    createdAt: addDays(new Date(), -2).toISOString(),
-  },
-  {
-    id: "demo-1",
-    reference: "RDQ-7KH2PM",
-    prestationIds: ["pedicure-manucure"],
-    lines: [{ prestationId: "pedicure-manucure", name: "Pédicure + manucure", price: 8000 }],
-    slotId: `${day(-24)}_14:00`,
-    date: day(-24),
-    start: "14:00",
-    end: "16:00",
-    client: demoClient,
-    status: "terminee",
-    accountRequested: false,
-    accountId: "demo-account",
-    createdAt: addDays(new Date(), -30).toISOString(),
-  },
-  {
-    id: "demo-2",
-    reference: "RDQ-Q4WN8T",
-    prestationIds: ["tresses"],
-    lines: [{ prestationId: "tresses", name: "Tresses", price: 15000, fromPrice: true }],
-    slotId: `${day(-10)}_09:00`,
-    date: day(-10),
-    start: "09:00",
-    end: "11:00",
-    client: demoClient,
-    status: "refusee",
-    rejectionReason:
-      "Les tresses demandent une demi-journée : merci de choisir deux créneaux consécutifs ou de nous appeler.",
-    accountRequested: false,
-    accountId: "demo-account",
-    createdAt: addDays(new Date(), -12).toISOString(),
-  },
-];
+const byAppointmentDesc = (a: Reservation, b: Reservation) =>
+  `${b.date} ${b.start}`.localeCompare(`${a.date} ${a.start}`);
 
-const setStatus = (
-  reservations: Reservation[],
-  id: string,
-  changes: Pick<Reservation, "status"> & Partial<Reservation>,
-) => reservations.map((r) => (r.id === id ? { ...r, ...changes } : r));
+export const useReservationStore = create<ReservationState>()((set, get) => {
+  // Refus du serveur (créneau pris, délai dépassé, statut changé) : la liste et les places ont pu
+  // changer ailleurs, on les relit
+  const refreshAfterRefusal = (error: unknown) => {
+    if (isApiError(error, 400) || isApiError(error, 404) || isApiError(error, 409)) {
+      void useSlotsStore.getState().load();
+      const { accountId } = get();
+      if (accountId) void get().load(accountId);
+    }
+  };
 
-// Réservations de toutes les clientes : la cliente ne voit que les siennes, l'admin les traite (maquette : conservées dans le navigateur en attendant l'API).
-// Hydratation manuelle (skipHydration) pour éviter un écart serveur / client.
-export const useReservationStore = create<ReservationState>()(
-  persist(
-    (set) => ({
-      reservations: [...demoReservations, ...generateDemoReservations()],
-      add: (reservation) => set((s) => ({ reservations: [reservation, ...s.reservations] })),
-      cancel: (id, reason) =>
-        set((s) => ({
-          reservations: setStatus(s.reservations, id, { status: "annulee", cancellationReason: reason }),
-        })),
-      confirm: (id) => set((s) => ({ reservations: setStatus(s.reservations, id, { status: "confirmee" }) })),
-      reject: (id, reason) =>
-        set((s) => ({
-          reservations: setStatus(s.reservations, id, { status: "refusee", rejectionReason: reason }),
-        })),
-      complete: (id) => set((s) => ({ reservations: setStatus(s.reservations, id, { status: "terminee" }) })),
-      claim: (accountId, email) =>
-        set((s) => ({
-          reservations: s.reservations.map((r) =>
-            !r.accountId && r.client.email?.toLowerCase() === email ? { ...r, accountId } : r,
-          ),
-        })),
-    }),
-    {
-      name: "rodiq-reservations",
-      // v1 : ajout des réservations des autres clientes pour l'admin
-      // v2 : prestations et prix figés dans chaque réservation (lines)
-      version: 2,
-      migrate: (persisted, version) => {
-        const state = persisted as Pick<ReservationState, "reservations">;
-        if (version < 1) state.reservations = [...state.reservations, ...generateDemoReservations()];
-        if (version < 2) {
-          state.reservations = state.reservations.map((r) =>
-            r.lines ? r : { ...r, lines: toReservationLines(allPrestations.filter((p) => r.prestationIds.includes(p.id))) },
-          );
-        }
-        return state as ReservationState;
-      },
-      storage: createJSONStorage(() => localStorage),
-      skipHydration: true,
+  return {
+    reservations: [],
+    accountId: null,
+    loadError: undefined,
+    load: async (accountId) => {
+      try {
+        const reservations = await reservationsApi.mine();
+        set({ reservations, accountId, loadError: undefined });
+      } catch (error) {
+        console.error("Lecture des réservations impossible", error);
+        set({ reservations: [], accountId, loadError: errorMessage(error) });
+      }
     },
-  ),
-);
+    add: async (data) => {
+      try {
+        const reservation = await reservationsApi.create(data);
+        set((s) => ({ reservations: [reservation, ...s.reservations].toSorted(byAppointmentDesc) }));
+        void useSlotsStore.getState().load();
+        return reservation;
+      } catch (error) {
+        refreshAfterRefusal(error);
+        throw error;
+      }
+    },
+    cancel: async (id, reason) => {
+      try {
+        const updated = await reservationsApi.cancel(id, reason);
+        set((s) => ({ reservations: s.reservations.map((r) => (r.id === id ? updated : r)) }));
+        void useSlotsStore.getState().load();
+      } catch (error) {
+        refreshAfterRefusal(error);
+        throw error;
+      }
+    },
+  };
+});
 
-// Vrai une fois les réservations relues depuis le localStorage
-export const useReservationsHydrated = createHydrationHook(useReservationStore);
+// Réservations du compte connecté, relues quand le compte change (connexion, déconnexion).
+// `loaded` est vrai sans session (rien à lire) ou une fois les réservations du compte lues
+export const useMyReservations = () => {
+  const authHydrated = useAuthHydrated();
+  const accountId = useAuthStore(selectCurrentAccountId);
+  const loadedFor = useReservationStore((s) => s.accountId);
+  const reservations = useReservationStore((s) => s.reservations);
+  const loadError = useReservationStore((s) => s.loadError);
+  const current = !!accountId && loadedFor === accountId;
+
+  useEffect(() => {
+    if (accountId && loadedFor !== accountId) void useReservationStore.getState().load(accountId);
+  }, [accountId, loadedFor]);
+
+  return {
+    loaded: authHydrated && (!accountId || current),
+    signedIn: !!accountId,
+    reservations: current ? reservations : [],
+    loadError: current ? loadError : undefined,
+    reload: () => (accountId ? useReservationStore.getState().load(accountId) : Promise.resolve()),
+  };
+};

@@ -3,7 +3,6 @@ import { authApi, type SignUpBody } from "@/lib/api/auth";
 import { isApiError } from "@/lib/api/client";
 import { ensureHydrated } from "./hydration";
 import { useOrderStore } from "./order-store";
-import { useReservationStore } from "./reservation-store";
 import { createLoadHook } from "./remote";
 
 export type Account = {
@@ -29,11 +28,11 @@ type AuthState = {
   signOut: () => Promise<void>;
 };
 
-// Historique passé sans compte (même e-mail) rattaché au nouveau compte.
-// Maquette : réservations et commandes sont encore dans le navigateur, le serveur le fera à l'inscription.
+// Commandes passées sans compte (même e-mail) rattachées au nouveau compte.
+// Maquette : les commandes sont encore dans le navigateur. Les réservations, elles, exigent un compte
+// (pas de rattachement par e-mail : l'adresse n'est pas vérifiée, voir docs/backend.md).
 const linkGuestHistory = async (accountId: string, email: string) => {
-  await Promise.all([ensureHydrated(useReservationStore), ensureHydrated(useOrderStore)]);
-  useReservationStore.getState().claim(accountId, email);
+  await ensureHydrated(useOrderStore);
   useOrderStore.getState().claim(accountId, email);
 };
 

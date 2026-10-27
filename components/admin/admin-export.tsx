@@ -1,6 +1,9 @@
 "use client";
 
 import { Download, Printer } from "lucide-react";
+import { useState } from "react";
+import { toast } from "sonner";
+import { errorMessage } from "@/lib/api/client";
 import { toDateKey } from "@/lib/reservations";
 import { adminButtonClassName } from "./admin-ui";
 
@@ -76,16 +79,46 @@ const printTable = ({ title, headers, rows }: ExportTable) =>
 <tbody>${rows.map((row) => `<tr>${row.map((cell) => `<td>${escapeHtml(cell)}</td>`).join("")}</tr>`).join("")}</tbody></table>`,
   );
 
+type AdminExportButtonsProps =
+  // Tableau déjà en mémoire
+  | { table: ExportTable }
+  // Tableau lu au clic (liste filtrée et paginée par l'API) : `count` lignes attendues
+  | { count: number; load: () => Promise<ExportTable> };
+
 // Boutons « Imprimer » et « Exporter CSV » d'un tableau
-export const AdminExportButtons = ({ table }: { table: ExportTable }) => {
-  const empty = table.rows.length === 0;
+export const AdminExportButtons = (props: AdminExportButtonsProps) => {
+  const [loading, setLoading] = useState(false);
+  const empty = ("table" in props ? props.table.rows.length : props.count) === 0;
+
+  const run = async (action: (table: ExportTable) => unknown) => {
+    if ("table" in props) return action(props.table);
+    setLoading(true);
+    try {
+      await action(await props.load());
+    } catch (error) {
+      toast.error("L'export n'a pas été préparé", { description: errorMessage(error) });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <>
-      <button type="button" onClick={() => printTable(table)} disabled={empty} className={adminButtonClassName}>
+      <button
+        type="button"
+        onClick={() => void run(printTable)}
+        disabled={empty || loading}
+        className={adminButtonClassName}
+      >
         <Printer className="size-4" strokeWidth={1.75} aria-hidden />
         Imprimer
       </button>
-      <button type="button" onClick={() => downloadCsv(table)} disabled={empty} className={adminButtonClassName}>
+      <button
+        type="button"
+        onClick={() => void run(downloadCsv)}
+        disabled={empty || loading}
+        className={adminButtonClassName}
+      >
         <Download className="size-4" strokeWidth={1.75} aria-hidden />
         Exporter CSV
       </button>

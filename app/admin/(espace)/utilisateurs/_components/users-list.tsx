@@ -30,7 +30,7 @@ import { formatDay, formatSlotTime, reservationTotal, type Reservation } from "@
 import { demoClientAccounts } from "@/lib/demo-data";
 import type { Account } from "@/lib/stores/auth-store";
 import { useOrderStore, useOrdersHydrated } from "@/lib/stores/order-store";
-import { useReservationStore, useReservationsHydrated } from "@/lib/stores/reservation-store";
+import { useAdminReservationsStore, useAllReservationsLoaded } from "@/lib/stores/admin-reservations-store";
 
 type SortOrder = "recentes" | "nom" | "reservations" | "commandes" | "depenses";
 
@@ -121,11 +121,11 @@ const AccountHistory = ({
 
 // Comptes clients avec leur activité (réservations, commandes, dépenses)
 export const UsersList = () => {
-  const reservationsHydrated = useReservationsHydrated();
+  const reservationsHydrated = useAllReservationsLoaded();
   const ordersHydrated = useOrdersHydrated();
   // Comptes de démonstration en attendant une route API qui liste les comptes (GET /admin/comptes)
   const accounts = demoClientAccounts;
-  const reservations = useReservationStore((s) => s.reservations);
+  const reservations = useAdminReservationsStore((s) => s.all);
   const orders = useOrderStore((s) => s.orders);
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortOrder>("recentes");

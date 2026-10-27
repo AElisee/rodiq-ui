@@ -1,8 +1,7 @@
-import { addDays, differenceInCalendarDays, format, isAfter, parse, startOfDay } from "date-fns";
+import { format, parse } from "date-fns";
 import { fr } from "date-fns/locale";
-import type { Prestation } from "@/lib/prestations";
 
-// Cycle de vie d'une réservation :
+// Cycle de vie d'une réservation (appliqué par l'API, `api-rodiq/src/reservations/reservations.rules.ts`) :
 // en_attente → confirmee → terminee
 // en_attente / confirmee (à venir) → refusee (motif obligatoire, côté admin)
 // en_attente / confirmee → annulee (par la cliente, dans le délai autorisé)
@@ -10,12 +9,13 @@ export type ReservationStatus = "en_attente" | "confirmee" | "refusee" | "annule
 
 export type ContactChannel = "appel" | "whatsapp" | "sms" | "email";
 
+// Coordonnées copiées du compte de la cliente à la réservation
 export type ReservationClient = {
   firstName: string;
   lastName: string;
   phone: string;
   whatsapp?: string;
-  email?: string;
+  email: string;
   contactChannel: ContactChannel;
 };
 
@@ -29,11 +29,9 @@ export type ReservationLine = {
 
 export type Reservation = {
   id: string;
-  // Référence courte communiquée à la cliente (téléphone, SMS…)
+  // Référence courte communiquée à la cliente (téléphone, SMS…), générée par l'API
   reference: string;
-  prestationIds: string[];
   lines: ReservationLine[];
-  slotId: string;
   date: string; // yyyy-MM-dd
   start: string; // HH:mm
   end: string; // HH:mm
@@ -42,19 +40,23 @@ export type Reservation = {
   status: ReservationStatus;
   rejectionReason?: string;
   cancellationReason?: string;
-  // La cliente a créé son compte en même temps que cette réservation
-  accountRequested: boolean;
-  // Compte de la cliente, si elle était connectée ou l'a créé en réservant
-  accountId?: string;
   createdAt: string; // ISO
+  // Dernier changement de statut (ISO)
+  processedAt?: string;
+  // Vue de la cliente : annulation en ligne encore possible, et dernier jour (inclus) pour le faire
+  canCancel?: boolean;
+  cancellationDeadline?: string; // yyyy-MM-dd
+  // Vue de l'admin : compte de la cliente
+  accountId?: string;
 };
 
+// Créneau réservable, avec ses places libres (calculé par l'API)
 export type Slot = {
-  id: string;
+  id: string; // `${date}_${start}`
   date: string; // yyyy-MM-dd
   start: string; // HH:mm
   end: string; // HH:mm
-  capacity: number | null; // null = places illimitées
+  remaining: number | null; // null = places illimitées, 0 = complet
 };
 
 // Règles de réservation réglées par l'admin (voir lib/stores/settings-store.ts)
@@ -129,9 +131,6 @@ export const contactChannels: { value: ContactChannel; label: string }[] = [
   { value: "email", label: "E-mail" },
 ];
 
-export const toReservationLines = (prestations: Prestation[]): ReservationLine[] =>
-  prestations.map(({ id, name, price, fromPrice }) => ({ prestationId: id, name, price, fromPrice }));
-
 // Montant estimé d'une réservation (prix d'appel pour les tarifs « dès »)
 export const reservationTotal = (reservation: Pick<Reservation, "lines">) =>
   reservation.lines.reduce((sum, line) => sum + line.price, 0);
@@ -145,31 +144,16 @@ export const isActive = (status: ReservationStatus) =>
 
 const slotDate = (date: string) => parse(date, "yyyy-MM-dd", new Date());
 
-export const slotStart = (date: string, start: string) =>
-  parse(`${date} ${start}`, "yyyy-MM-dd HH:mm", new Date());
-
-// Dernier jour (inclus) où la cliente peut annuler elle-même
-export const cancellationDeadline = (reservation: Pick<Reservation, "date">, noticeDays: number) =>
-  addDays(slotDate(reservation.date), -noticeDays);
-
-export const canCancel = (reservation: Reservation, noticeDays: number, now = new Date()) =>
-  isActive(reservation.status) &&
-  differenceInCalendarDays(slotDate(reservation.date), now) >= noticeDays;
-
 export const formatDay = (date: string | Date) =>
   format(typeof date === "string" ? slotDate(date) : date, "EEEE d MMMM yyyy", { locale: fr });
+
+// « 3 novembre » (délai d'annulation)
+export const formatShortDay = (date: string) => format(slotDate(date), "d MMMM", { locale: fr });
 
 export const formatSlotTime = (start: string, end: string) =>
   `${start.replace(":", "h")} – ${end.replace(":", "h")}`;
 
 export const toDateKey = (date: Date) => format(date, "yyyy-MM-dd");
-
-// Référence lisible, sans caractères ambigus (0/O, 1/I)
-export const generateReference = () => {
-  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  const code = Array.from(crypto.getRandomValues(new Uint8Array(6)), (n) => alphabet[n % alphabet.length]);
-  return `RDQ-${code.join("")}`;
-};
 
 const toMinutes = (time: string) => {
   const [h, m] = time.split(":").map(Number);
@@ -180,6 +164,7 @@ const toTime = (minutes: number) =>
   `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
 
 // Créneaux d'une journée : de l'ouverture à la fermeture, par pas de slotMinutes, hors pause
+// (aperçu de l'écran Réglages ; les créneaux réservables viennent de l'API, `GET /creneaux`)
 export const daySlotTimes = (hours: DayHours, slotMinutes: number) => {
   if (!hours.open || slotMinutes <= 0) return [];
   const closing = toMinutes(hours.closing);
@@ -200,24 +185,6 @@ export const daySlotTimes = (hours: DayHours, slotMinutes: number) => {
     start += slotMinutes;
   }
   return times;
-};
-
-// Créneaux réservables sur la fenêtre de réservation (hors jours fermés et délai minimum)
-export const getSlots = (schedule: Schedule, now = new Date()): Slot[] => {
-  const { rules, week, slotMinutes, slotCapacity, closedDates } = schedule;
-  const earliest = new Date(now.getTime() + rules.minNoticeHours * 3_600_000);
-  const today = startOfDay(now);
-  const closed = new Set(closedDates.map((d) => d.date));
-
-  return Array.from({ length: rules.bookingWindowDays + 1 }, (_, i) => addDays(today, i))
-    .filter((day) => !closed.has(toDateKey(day)))
-    .flatMap((day) =>
-      daySlotTimes(week[day.getDay()], slotMinutes).map(({ start, end }) => {
-        const date = toDateKey(day);
-        return { id: `${date}_${start}`, date, start, end, capacity: slotCapacity };
-      }),
-    )
-    .filter((slot) => isAfter(slotStart(slot.date, slot.start), earliest));
 };
 
 const formatHour = (time: string) => time.replace(":00", "h").replace(":", "h");

@@ -5,7 +5,7 @@ export const metadata: Metadata = {
   title: "Réservation",
 };
 
-// Identifiant connu du navigateur seulement (données en localStorage) : rendu à la demande
+// Réservation lue par le navigateur avec la session admin (cookie) : rendu à la demande
 export const instant = false;
 
 const AdminReservationPage = async ({ params }: { params: Promise<{ id: string }> }) => {

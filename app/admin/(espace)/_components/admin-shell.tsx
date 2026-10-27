@@ -26,7 +26,7 @@ import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAdminHydrated, useAdminStore } from "@/lib/stores/admin-store";
 import { useOrderStore, useOrdersHydrated } from "@/lib/stores/order-store";
-import { useReservationStore, useReservationsHydrated } from "@/lib/stores/reservation-store";
+import { useAdminReservationsStore, usePendingReservationsCount } from "@/lib/stores/admin-reservations-store";
 import { cn } from "@/lib/utils";
 
 type AdminSubLink = { label: string; href: string };
@@ -103,12 +103,10 @@ const CollapsedTooltip = ({
 
 const NavLinks = ({ onNavigate, collapsed = false }: { onNavigate?: () => void; collapsed?: boolean }) => {
   const pathname = usePathname();
-  useReservationsHydrated();
+  usePendingReservationsCount();
   useOrdersHydrated();
   // Demandes à traiter, affichées en pastille dans le menu
-  const pendingReservations = useReservationStore(
-    (s) => s.reservations.filter((r) => r.status === "en_attente").length,
-  );
+  const pendingReservations = useAdminReservationsStore((s) => s.pendingCount ?? 0);
   const pendingOrders = useOrderStore((s) => s.orders.filter((o) => o.status === "en_attente").length);
   const pendingByHref: Record<string, number> = {
     "/admin/reservations": pendingReservations,

@@ -3,8 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { statusMeta, type ReservationStatus } from "@/lib/reservations";
-import { selectCurrentAccountId, useAuthHydrated, useAuthStore } from "@/lib/stores/auth-store";
-import { useReservationStore, useReservationsHydrated } from "@/lib/stores/reservation-store";
+import { useMyReservations } from "@/lib/stores/reservation-store";
 import { cn } from "@/lib/utils";
 import { ReservationCard } from "./reservation-card";
 
@@ -18,17 +17,32 @@ const filters: { value: ReservationStatus | null; label: string }[] = [
 
 // Historique des réservations, filtrable par statut
 export const ReservationHistory = () => {
-  const hydrated = useReservationsHydrated();
-  const authHydrated = useAuthHydrated();
-  const accountId = useAuthStore(selectCurrentAccountId);
-  const allReservations = useReservationStore((s) => s.reservations);
+  const { loaded, signedIn, reservations, loadError, reload } = useMyReservations();
   const [status, setStatus] = useState<ReservationStatus | null>(null);
 
-  // Les réservations sont relues depuis le navigateur : rien à afficher côté serveur
-  if (!hydrated || !authHydrated) return <div className="min-h-64" aria-hidden />;
+  // Session et réservations lues depuis l'API : rien à afficher côté serveur
+  if (!loaded) return <div className="min-h-64" aria-hidden />;
 
-  // Connectée : les réservations de son compte ; sinon celles faites sans compte sur ce navigateur
-  const reservations = allReservations.filter((r) => (r.accountId ?? null) === accountId);
+  // Sans compte, pas de réservation : le bandeau au-dessus invite à se connecter
+  if (!signedIn) return null;
+
+  if (loadError) {
+    return (
+      <div role="alert" className="flex flex-col items-center py-12 text-center">
+        <p className="font-serif text-[clamp(1.25rem,2vw,1.75rem)] text-cocoa">
+          Vos réservations n&apos;ont pas pu être chargées.
+        </p>
+        <p className="mt-3 max-w-md font-sans text-sm text-taupe">{loadError}</p>
+        <button
+          type="button"
+          onClick={() => void reload()}
+          className="mt-8 inline-flex h-12 items-center justify-center rounded-full bg-blush px-8 font-sans text-base text-cocoa transition-colors hover:bg-sand"
+        >
+          Réessayer
+        </button>
+      </div>
+    );
+  }
 
   if (reservations.length === 0) {
     return (
@@ -52,10 +66,8 @@ export const ReservationHistory = () => {
   const count = (value: ReservationStatus | null) =>
     value ? reservations.filter((r) => r.status === value).length : reservations.length;
 
-  // Rendez-vous les plus proches / récents en premier
-  const visible = reservations
-    .filter((r) => !status || r.status === status)
-    .toSorted((a, b) => `${b.date} ${b.start}`.localeCompare(`${a.date} ${a.start}`));
+  // Rendez-vous les plus récents en premier (ordre de l'API)
+  const visible = reservations.filter((r) => !status || r.status === status);
 
   return (
     <>

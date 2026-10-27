@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { AdminBackLink, DetailNotFound, DetailPanel, DetailRow } from "@/components/admin/admin-detail";
@@ -13,25 +14,45 @@ import {
   reservationTotal,
   toDateKey,
 } from "@/lib/reservations";
-import { useReservationStore, useReservationsHydrated } from "@/lib/stores/reservation-store";
+import { useAdminReservationsStore } from "@/lib/stores/admin-reservations-store";
 import { ReservationActions } from "./reservation-actions";
 
 const formatDateTime = (iso: string) => format(new Date(iso), "d MMMM yyyy 'à' HH'h'mm", { locale: fr });
 
 // Fiche complète d'une réservation : rendez-vous, prestations, coordonnées, motifs et actions
 export const ReservationDetails = ({ id }: { id: string }) => {
-  const hydrated = useReservationsHydrated();
-  const reservation = useReservationStore((s) => s.reservations.find((r) => r.id === id));
+  const reservation = useAdminReservationsStore((s) => s.details[id]);
+  const error = useAdminReservationsStore((s) => s.detailErrors[id]);
+  const loadDetail = useAdminReservationsStore((s) => s.loadDetail);
 
-  if (!hydrated) return <div className="min-h-96" aria-hidden />;
+  // Relue à chaque ouverture : la réservation a pu changer depuis la liste
+  useEffect(() => {
+    void loadDetail(id);
+  }, [id, loadDetail]);
 
-  if (!reservation)
+  if (error?.status === 404)
     return (
       <div className="flex flex-col gap-6 pt-6">
         <AdminBackLink href="/admin/reservations">Réservations</AdminBackLink>
         <DetailNotFound title="Cette réservation est introuvable." href="/admin/reservations" label="Retour aux réservations" />
       </div>
     );
+
+  if (error && !reservation)
+    return (
+      <div className="flex flex-col gap-6 pt-6">
+        <AdminBackLink href="/admin/reservations">Réservations</AdminBackLink>
+        <div role="alert" className="rounded-[var(--radius)] border border-sand p-6 font-sans text-sm text-cocoa">
+          <p className="font-serif text-lg">La réservation n&apos;a pas pu être chargée.</p>
+          <p className="mt-2 text-taupe">{error.message}</p>
+          <button type="button" onClick={() => void loadDetail(id)} className="mt-4 underline underline-offset-4">
+            Réessayer
+          </button>
+        </div>
+      </div>
+    );
+
+  if (!reservation) return <div className="min-h-96" aria-hidden />;
 
   const { client } = reservation;
   const isToday = reservation.date === toDateKey(new Date());
@@ -122,9 +143,9 @@ export const ReservationDetails = ({ id }: { id: string }) => {
             <DetailRow label="Contact préféré">
               {contactChannels.find((c) => c.value === client.contactChannel)?.label}
             </DetailRow>
-            <DetailRow label="Compte client">
-              {reservation.accountRequested ? "Créé avec cette réservation" : reservation.accountId ? "Oui" : "Sans compte"}
-            </DetailRow>
+            {reservation.processedAt && (
+              <DetailRow label="Dernier traitement">{formatDateTime(reservation.processedAt)}</DetailRow>
+            )}
           </dl>
         </DetailPanel>
       </div>

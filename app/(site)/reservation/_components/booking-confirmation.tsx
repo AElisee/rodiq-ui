@@ -1,23 +1,26 @@
 "use client";
 
 import Link from "next/link";
-import { format } from "date-fns";
-import { fr } from "date-fns/locale";
 import {
-  cancellationDeadline,
   contactChannels,
   formatDay,
+  formatShortDay,
   formatSlotTime,
   statusMeta,
   type Reservation,
 } from "@/lib/reservations";
-import { useSettingsStore } from "@/lib/stores/settings-store";
 import { cn } from "@/lib/utils";
 
-// Écran affiché une fois la demande envoyée
-export const BookingConfirmation = ({ reservation }: { reservation: Reservation }) => {
+type BookingConfirmationProps = {
+  // Réservation enregistrée, telle que renvoyée par l'API
+  reservation: Reservation;
+  // Le compte a été créé avec cette demande
+  accountCreated: boolean;
+};
+
+// Écran affiché une fois la demande enregistrée par l'API
+export const BookingConfirmation = ({ reservation, accountCreated }: BookingConfirmationProps) => {
   const { client } = reservation;
-  const noticeDays = useSettingsStore((s) => s.rules.cancellationNoticeDays);
   const channel = contactChannels.find((c) => c.value === client.contactChannel)?.label;
   const contact =
     client.contactChannel === "email"
@@ -60,15 +63,19 @@ export const BookingConfirmation = ({ reservation }: { reservation: Reservation 
             <dt className="text-taupe">Prestations</dt>
             <dd className="sm:text-right">{reservation.lines.map((line) => line.name).join(", ")}</dd>
           </div>
-          <div className="flex flex-col gap-1 sm:flex-row sm:justify-between sm:gap-4">
-            <dt className="text-taupe">Annulation en ligne</dt>
-            <dd className="sm:text-right">
-              jusqu&apos;au {format(cancellationDeadline(reservation, noticeDays), "d MMMM", { locale: fr })} inclus
-            </dd>
-          </div>
+          {reservation.cancellationDeadline && (
+            <div className="flex flex-col gap-1 sm:flex-row sm:justify-between sm:gap-4">
+              <dt className="text-taupe">Annulation en ligne</dt>
+              <dd className="sm:text-right">
+                {reservation.canCancel
+                  ? `jusqu'au ${formatShortDay(reservation.cancellationDeadline)} inclus`
+                  : "délai dépassé : contactez le salon"}
+              </dd>
+            </div>
+          )}
         </dl>
 
-        {reservation.accountRequested && (
+        {accountCreated && (
           <p className="mt-6 border-t border-sand pt-6 font-sans text-sm text-cocoa">
             Votre compte RODIQ est créé avec l&apos;adresse {client.email}.
           </p>

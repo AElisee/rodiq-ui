@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Projet
 
 Front Next.js de RODIQ (salon d'onglerie + boutique), en français. L'authentification (clients et admin), les
-réglages et la carte des prestations passent par l'API ; les autres données sont encore une **maquette** dans des stores zustand
+réglages, la carte des prestations et les réservations passent par l'API ; les autres données sont encore une **maquette** dans des stores zustand
 persistés dans le `localStorage`. L'API
 (NestJS + TypeORM + MariaDB, dépôt séparé `../api-rodiq`) est spécifiée dans `docs/backend.md` et son
 installation dans `docs/installation-backend.md`.
@@ -38,15 +38,19 @@ layout/page utilisent les types globaux générés (`LayoutProps<"/">`, `PagePro
   dans `components/` (`ui/` = shadcn, `admin/` = briques communes de l'admin, `layout/`, `forms/`…).
 - `lib/*.ts` (`prestations`, `produits`, `reservations`, `commandes`) : types de référence, données
   initiales du catalogue et règles métier (transitions de statut décrites en tête de `reservations.ts` et
-  `commandes.ts`). `lib/demo-data.ts` génère des données de démonstration déterministes pour l'admin.
+  `commandes.ts`). Réserver exige un compte : créneaux, places, délai d'annulation (`canCancel`,
+  `cancellationDeadline`) et références sont calculés par l'API, jamais par le navigateur. `lib/demo-data.ts` génère des données de démonstration déterministes pour l'admin.
 - `lib/api/` : **seule couche qui parle à l'API**. `client.ts` (URL `NEXT_PUBLIC_API_URL`, cookies
   `credentials: "include"`, `ApiError`, `errorMessage` pour les toasts), `endpoints.ts` (tous les chemins),
-  un service par ressource (`auth.ts`, `parametres.ts`, `prestations.ts`) qui traduit les DTO de l'API (noms français) vers les
+  un service par ressource (`auth.ts`, `parametres.ts`, `prestations.ts`, `reservations.ts`) qui traduit les DTO de l'API (noms français) vers les
   types du front. Les composants n'appellent jamais l'API : ils passent par les stores.
-- `lib/stores/` : **un store = une ressource d'API**. `auth-store`, `admin-store`, `settings-store` et
-  `prestations-store` sont alimentés par `lib/api/` (non persistés ; hook `use…Hydrated` créé par `createLoadHook` de `remote.ts`, qui
+- `lib/stores/` : **un store = une ressource d'API**. `auth-store`, `admin-store`, `settings-store`,
+  `prestations-store`, `reservation-store` (réservations du compte connecté, `useMyReservations`), `slots-store`
+  (créneaux) et `admin-reservations-store` (liste paginée côté serveur, fiche, actions, pastille, tableau de
+  bord) sont alimentés par `lib/api/` (non persistés ; hook `use…Hydrated` créé par `createLoadHook` de `remote.ts`, qui
   lance le chargement) ; leurs actions sont asynchrones et lèvent une `ApiError` en cas d'échec. Le site et l'admin lisent et écrivent les
-  mêmes stores (`prestations`, `catalog`, `reservation`, `order`, `settings`, `auth`, `admin`, `visit`) ; `cart` et
+  mêmes stores (`prestations`, `catalog`, `order`, `settings`, `auth`, `admin`, `visit`), sauf les réservations
+  (`reservation-store` côté site, `admin-reservations-store` côté admin) ; `cart` et
   `booking` restent côté navigateur. La table store → endpoint est dans `docs/backend.md` : la tenir à
   jour quand on ajoute une action de store.
 - Les stores persistés sont en hydratation manuelle (`skipHydration`) : utiliser le hook

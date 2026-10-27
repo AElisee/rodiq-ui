@@ -27,7 +27,7 @@ import {
   type ReservationStatus,
 } from "@/lib/reservations";
 import { useOrderStore, useOrdersHydrated } from "@/lib/stores/order-store";
-import { useReservationStore, useReservationsHydrated } from "@/lib/stores/reservation-store";
+import { useAdminReservationsStore, useAllReservationsLoaded } from "@/lib/stores/admin-reservations-store";
 import { useVisitStore, useVisitsHydrated } from "@/lib/stores/visit-store";
 
 const visitorsConfig = {
@@ -70,10 +70,12 @@ const tooltip = (
 );
 
 export const Dashboard = () => {
-  const reservationsHydrated = useReservationsHydrated();
+  const reservationsHydrated = useAllReservationsLoaded();
   const visitsHydrated = useVisitsHydrated();
   const ordersHydrated = useOrdersHydrated();
-  const reservations = useReservationStore((s) => s.reservations);
+  const reservations = useAdminReservationsStore((s) => s.all);
+  const reservationsError = useAdminReservationsStore((s) => s.allError);
+  const reloadReservations = useAdminReservationsStore((s) => s.loadAll);
   const visits = useVisitStore((s) => s.days);
   const orders = useOrderStore((s) => s.orders);
   const [period, setPeriod] = useState<StatsPeriod>("jour");
@@ -87,6 +89,19 @@ export const Dashboard = () => {
   );
 
   if (!hydrated) return <div className="min-h-96" aria-hidden />;
+
+  // Jamais de chiffres à zéro à la place d'une lecture échouée
+  if (reservationsError) {
+    return (
+      <div role="alert" className="rounded-[var(--radius)] border border-sand p-6 font-sans text-sm text-cocoa">
+        <p className="font-serif text-lg">Les réservations n&apos;ont pas pu être chargées.</p>
+        <p className="mt-2 text-taupe">{reservationsError}</p>
+        <button type="button" onClick={() => void reloadReservations()} className="mt-4 underline underline-offset-4">
+          Réessayer
+        </button>
+      </div>
+    );
+  }
 
   const periodMeta = statsPeriods.find((p) => p.value === period)!;
   const totalVisitors = stats.reduce((sum, p) => sum + p.visitors, 0);

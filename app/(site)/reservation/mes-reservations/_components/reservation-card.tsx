@@ -1,14 +1,11 @@
 "use client";
 
-import { format } from "date-fns";
-import { fr } from "date-fns/locale";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { formatPrice } from "@/lib/prestations";
 import {
-  canCancel,
-  cancellationDeadline,
   formatDay,
+  formatShortDay,
   formatSlotTime,
   hasFromPrice,
   isActive,
@@ -18,7 +15,6 @@ import {
 } from "@/lib/reservations";
 import { useBookingStore } from "@/lib/stores/booking-store";
 import { useAllPrestations, usePrestationsStore } from "@/lib/stores/prestations-store";
-import { useSettingsStore } from "@/lib/stores/settings-store";
 import { cn } from "@/lib/utils";
 import { CancelDialog } from "./cancel-dialog";
 
@@ -28,12 +24,10 @@ export const ReservationCard = ({ reservation }: { reservation: Reservation }) =
   const clear = useBookingStore((s) => s.clear);
   const allPrestations = useAllPrestations();
   const catalogueError = usePrestationsStore((s) => s.loadError);
-  const noticeDays = useSettingsStore((s) => s.rules.cancellationNoticeDays);
 
   // Prestations et prix figés au moment de la demande
   const lines = reservation.lines;
   const status = statusMeta[reservation.status];
-  const deadline = format(cancellationDeadline(reservation, noticeDays), "d MMMM", { locale: fr });
 
   // Reprend les mêmes prestations (encore proposées) pour une nouvelle réservation
   const bookAgain = () => {
@@ -44,9 +38,10 @@ export const ReservationCard = ({ reservation }: { reservation: Reservation }) =
       return;
     }
     clear();
-    const offered = allPrestations.filter((p) => reservation.prestationIds.includes(p.id));
+    const prestationIds = lines.map((line) => line.prestationId);
+    const offered = allPrestations.filter((p) => prestationIds.includes(p.id));
     offered.forEach((p) => toggle(p.id));
-    const withdrawn = reservation.prestationIds.length - offered.length;
+    const withdrawn = prestationIds.length - offered.length;
     if (withdrawn > 0) {
       toast(
         withdrawn > 1
@@ -103,9 +98,11 @@ export const ReservationCard = ({ reservation }: { reservation: Reservation }) =
         )}
 
         <div className="mt-5 flex flex-wrap items-center justify-between gap-4">
-          {canCancel(reservation, noticeDays) ? (
+          {reservation.canCancel && reservation.cancellationDeadline ? (
             <>
-              <p className="text-taupe">Annulation en ligne possible jusqu&apos;au {deadline} inclus.</p>
+              <p className="text-taupe">
+                Annulation en ligne possible jusqu&apos;au {formatShortDay(reservation.cancellationDeadline)} inclus.
+              </p>
               <CancelDialog reservation={reservation} />
             </>
           ) : isActive(reservation.status) ? (

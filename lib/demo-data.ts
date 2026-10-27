@@ -1,13 +1,10 @@
 import { addDays, format, startOfDay } from "date-fns";
 import { deliveryZones, type Order, type OrderLine, type OrderStatus } from "@/lib/commandes";
-import { allPrestations } from "@/lib/prestations";
 import { products } from "@/lib/produits";
-import { daySlotTimes, toReservationLines, type Reservation, type ReservationStatus } from "@/lib/reservations";
 import type { Account } from "@/lib/stores/auth-store";
-import { defaultSettings } from "@/lib/stores/settings-store";
 
 // ---------------------------------------------------------------------------
-// Maquette : clientes, réservations et visites de démonstration pour l'admin,
+// Maquette : clientes, commandes et visites de démonstration pour l'admin,
 // en attendant l'API. Générées de façon stable (même graine → mêmes données).
 // ---------------------------------------------------------------------------
 
@@ -41,67 +38,6 @@ export const demoClientAccounts: Account[] = people.map(([firstName, lastName, p
   email: `${slug(firstName)}.${slug(lastName)}@exemple.ci`,
   createdAt: addDays(new Date(), -100 + i * 11).toISOString(),
 }));
-
-const pastStatus = (r: number): ReservationStatus =>
-  r < 0.75 ? "terminee" : r < 0.88 ? "annulee" : "refusee";
-const futureStatus = (r: number): ReservationStatus => (r < 0.55 ? "confirmee" : "en_attente");
-
-const rejectionReasons = [
-  "Le créneau n'est plus disponible : merci d'en choisir un autre.",
-  "Cette prestation demande plus de temps : appelez-nous pour réserver deux créneaux.",
-];
-
-// Réservations des autres clientes, du passé (90 jours) aux 3 prochaines semaines
-export const generateDemoReservations = (now = new Date()): Reservation[] => {
-  const random = seeded(2026);
-  const today = startOfDay(now);
-  const reservations: Reservation[] = [];
-
-  for (let offset = -90; offset <= 21; offset++) {
-    const day = addDays(today, offset);
-    const date = format(day, "yyyy-MM-dd");
-    const times = daySlotTimes(defaultSettings.week[day.getDay()], defaultSettings.slotMinutes);
-    // Capacité illimitée : on simule comme pour 2 places
-    const capacity = defaultSettings.slotCapacity ?? 2;
-
-    for (const { start, end } of times) {
-      // Une place sur deux est prise en moyenne, jamais plus que la capacité
-      const count = Math.floor(random() * (capacity + 0.6));
-      for (let n = 0; n < Math.min(count, capacity); n++) {
-        const account = demoClientAccounts[Math.floor(random() * demoClientAccounts.length)];
-        const status = offset < 0 ? pastStatus(random()) : futureStatus(random());
-        const picked = [allPrestations[Math.floor(random() * allPrestations.length)]];
-        if (random() < 0.3) picked.push(allPrestations[Math.floor(random() * allPrestations.length)]);
-        const prestations = [...new Set(picked)];
-
-        reservations.push({
-          id: `seed-${date}-${start}-${n}`,
-          reference: `RDQ-${Math.floor(random() * 0xffffff).toString(36).toUpperCase().padStart(6, "X")}`,
-          prestationIds: prestations.map((p) => p.id),
-          lines: toReservationLines(prestations),
-          slotId: `${date}_${start}`,
-          date,
-          start,
-          end,
-          client: {
-            firstName: account.firstName,
-            lastName: account.lastName,
-            phone: account.phone,
-            email: account.email,
-            contactChannel: random() < 0.6 ? "whatsapp" : "appel",
-          },
-          status,
-          rejectionReason:
-            status === "refusee" ? rejectionReasons[Math.floor(random() * rejectionReasons.length)] : undefined,
-          accountRequested: false,
-          accountId: account.id,
-          createdAt: addDays(day, -1 - Math.floor(random() * 6)).toISOString(),
-        });
-      }
-    }
-  }
-  return reservations;
-};
 
 const streets = ["Rue des Jardins", "Boulevard Latrille", "Rue du Commerce", "Allée des Flamboyants", "Rue Pierre et Marie Curie"];
 

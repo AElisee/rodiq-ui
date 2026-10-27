@@ -12,7 +12,9 @@ un store par des appels API branche les deux côtés d'un coup.
 | `admin-store` (**branché sur l'API**)     | session admin          | —                                                | connexion `/admin/connexion`               |
 | `prestations-store` (**branché sur l'API**) | `prestations`        | prestations, réservation, mes réservations       | Prestations › Catalogue prestations, Prestations › Catégories |
 | `catalog-store` (`rodiq-catalog`)         | `product-categories`, `products` | boutique, panier                     | Boutique › Produits, Boutique › Catégories |
-| `reservation-store` (`rodiq-reservations`) | `reservations`        | réservation, mes réservations                    | Réservations, tableau de bord, Clientèle   |
+| `reservation-store` (**branché sur l'API**) | `me/reservations`, `reservations` | réservation, mes réservations (compte connecté) | —                                  |
+| `slots-store` (**branché sur l'API**)     | `creneaux`             | réservation (créneaux et places libres)          | —                                          |
+| `admin-reservations-store` (**branché sur l'API**) | `admin/reservations` | —                                       | Réservations, fiche, pastille du menu, tableau de bord, Clientèle |
 | `order-store` (`rodiq-orders`)            | `orders`               | commande, mes commandes                          | Commandes, tableau de bord, Clientèle      |
 | `settings-store` (**branché sur l'API**)  | `parametres`           | créneaux, horaires, contact, logo, frais de port | Réglages                                   |
 | `visit-store` (`rodiq-visits`)            | `stats/visits`         | compteur (une visite par session)                | tableau de bord                            |
@@ -37,13 +39,42 @@ Les types de référence sont dans `lib/reservations.ts`, `lib/commandes.ts`, `l
 
 ### Réservations
 
-- `GET /slots` : créneaux réservables avec places restantes (calcul actuel : `getSlots` + réservations
-  actives, voir `booking-flow.tsx`)
-- `POST /reservations` ← `add` · `GET /me/reservations`
-- `POST /reservations/:id/cancel` ← `cancel` (par le compte qui a réservé, motif optionnel)
-- Admin : `GET /admin/reservations`, `GET /admin/reservations/:id`,
-  `POST …/:id/confirm` ← `confirm`, `POST …/:id/reject` ← `reject` (motif obligatoire),
-  `POST …/:id/complete` ← `complete`
+Implémenté dans `api-rodiq/src/reservations/`, branché via `lib/api/reservations.ts` et trois stores :
+`reservation-store` (réservations du compte connecté : `load` ← `GET /me/reservations`, relu quand le compte
+change ; `add` ← `POST /reservations` ; `cancel` ← `POST /me/reservations/:id/annuler`), `slots-store`
+(`GET /creneaux`, relu après chaque demande ou refus) et `admin-reservations-store` (`loadPage` ← liste
+paginée, `loadDetail` ← fiche, `confirm` / `reject` / `complete`, `pendingCount` ← `statut=en_attente&parPage=1`
+pour la pastille du menu, `loadAll` ← toutes les pages pour le tableau de bord et la Clientèle, `fetchMatching`
+← toutes les pages des filtres pour l'export). Un refus 400 / 404 / 409 relit les listes et les créneaux.
+Le tableau de bord lit toutes les réservations page après page : à remplacer par une route de statistiques
+quand le volume grandira.
+
+**Réserver exige un compte client** : plus de réservation sans
+compte ni de rattachement par e-mail (`claim` / `linkGuestHistory` à retirer : l'e-mail n'est pas vérifié, n'importe
+qui pourrait récupérer l'historique d'une autre cliente). Le formulaire doit donc connecter la cliente ou créer son
+compte (`POST /auth/sign-up`) **avant** `POST /reservations` : c'est ce que fait `booking-flow.tsx`.
+
+Forme d'une réservation (`ReservationDto`) : `{ id, reference, date, debut, fin, statut, lignes: [{ prestationId,
+nom, prix, prixAPartirDe }], total, totalAPartirDe, contact: { prenom, nom, telephone, whatsapp, email },
+canalContact, note, motifRefus, motifAnnulation, creeLe, traiteeLe }`. Côté cliente s'ajoutent `annulable` et
+`dateLimiteAnnulation` (calculés par le serveur, remplacent `canCancel`) ; côté admin `compteId`.
+
+- `GET /creneaux` (public) : `[{ date, debut, fin, placesRestantes }]` sur la fenêtre de réservation (`null` =
+  illimité, `0` = complet), remplace `getSlots` + comptage dans `booking-flow.tsx`.
+- `POST /reservations` ← `add`, corps `{ prestationIds, date, debut, canalContact, note? }` : coordonnées tirées du
+  compte, prix de la carte. **400** créneau non réservable ou prestation retirée (raison précise), **409** créneau
+  complet, déjà réservé par la cliente, ou 3 réservations actives à venir déjà en cours, **429** au-delà de 5
+  demandes par minute.
+- `GET /me/reservations` (la plus récente d'abord) · `POST /me/reservations/:id/annuler` ← `cancel` (`{ motif? }` ;
+  **409** hors délai ou déjà traitée, **404** si elle n'est pas à la cliente).
+- Admin : `GET /admin/reservations?statut=&quand=a-venir|passees&q=&tri=date-asc|date-desc|demande|nom&page=&parPage=`
+  → `{ elements, total, page, parPage, parStatut }` (filtres, recherche et pagination côté serveur,
+  `parPage` ≤ 100 ; `parStatut` = nombre par statut avec les autres filtres, pour les compteurs),
+  `GET /admin/reservations/:id`, `POST …/:id/confirmer` ← `confirm`, `POST …/:id/refuser` ← `reject`
+  (`{ motif }`, 5 caractères au moins), `POST …/:id/terminer` ← `complete`. Chaque action renvoie la réservation à
+  jour ; **409** avec la raison si le statut a changé entre-temps ou si la date ne le permet pas.
+- `POST /admin/parametres/fermetures` répond **409** si le jour a encore des réservations en attente ou confirmées
+  (références listées) : les refuser d'abord.
 
 ### Commandes
 
