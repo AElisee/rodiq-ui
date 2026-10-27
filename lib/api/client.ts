@@ -17,12 +17,19 @@ export class ApiError extends Error {
 export const isApiError = (error: unknown, status?: number): error is ApiError =>
   error instanceof ApiError && (status === undefined || error.status === status);
 
-// Message à afficher dans un toast, quelle que soit l'erreur
+// Message à afficher dans un toast, quelle que soit l'erreur : dit ce qui s'est réellement passé
 export const errorMessage = (error: unknown) => {
-  if (!(error instanceof ApiError)) return "Une erreur inattendue est survenue";
-  if (error.status === 0) return "Serveur injoignable : vérifiez votre connexion";
-  if (error.status === 429) return "Trop de tentatives : réessayez dans une minute";
-  if (error.status >= 500) return "Le serveur a rencontré un problème, réessayez plus tard";
+  if (!(error instanceof ApiError)) {
+    // Erreur du navigateur (code du front), pas une réponse du serveur
+    const detail = error instanceof Error && error.message ? ` : ${error.message}` : "";
+    return `Erreur inattendue dans la page${detail}`;
+  }
+  if (error.status === 0) return "Serveur injoignable : votre connexion est coupée ou l'API ne répond pas";
+  if (error.status === 429) return "Trop de tentatives en peu de temps : réessayez dans une minute";
+  if (error.status >= 500) {
+    return `Erreur interne du serveur (${error.status}) : la demande n'a pas abouti, réessayez plus tard`;
+  }
+  if (error.messages.length === 0) return `Demande refusée par le serveur (erreur ${error.status})`;
   return error.messages.join(" · ");
 };
 
@@ -58,6 +65,10 @@ export const apiRequest = async <T>(path: string, { method = "GET", body }: Requ
   if (response.status === 204) return undefined as T;
 
   const data: unknown = await response.json().catch(() => undefined);
+  // Réponse réussie mais corps non JSON (proxy, page d'erreur HTML…) : inutilisable
+  if (response.ok && data === undefined) {
+    throw new ApiError(response.status, ["Le serveur a renvoyé une réponse illisible"]);
+  }
   if (!response.ok) {
     const message = (data as { message?: string | string[] } | undefined)?.message;
     throw new ApiError(response.status, Array.isArray(message) ? message : message ? [message] : []);

@@ -34,7 +34,7 @@ import {
   useAuthStore,
 } from "@/lib/stores/auth-store";
 import { useBookingStore } from "@/lib/stores/booking-store";
-import { useAllPrestations } from "@/lib/stores/catalog-store";
+import { useAllPrestations } from "@/lib/stores/prestations-store";
 import { useReservationStore, useReservationsHydrated } from "@/lib/stores/reservation-store";
 import { selectSchedule, useSettingsHydrated, useSettingsStore } from "@/lib/stores/settings-store";
 import {

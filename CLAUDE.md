@@ -6,8 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Projet
 
-Front Next.js de RODIQ (salon d'onglerie + boutique), en français. L'authentification (clients et admin) et les
-réglages passent par l'API ; les autres données sont encore une **maquette** dans des stores zustand
+Front Next.js de RODIQ (salon d'onglerie + boutique), en français. L'authentification (clients et admin), les
+réglages et la carte des prestations passent par l'API ; les autres données sont encore une **maquette** dans des stores zustand
 persistés dans le `localStorage`. L'API
 (NestJS + TypeORM + MariaDB, dépôt séparé `../api-rodiq`) est spécifiée dans `docs/backend.md` et son
 installation dans `docs/installation-backend.md`.
@@ -41,18 +41,22 @@ layout/page utilisent les types globaux générés (`LayoutProps<"/">`, `PagePro
   `commandes.ts`). `lib/demo-data.ts` génère des données de démonstration déterministes pour l'admin.
 - `lib/api/` : **seule couche qui parle à l'API**. `client.ts` (URL `NEXT_PUBLIC_API_URL`, cookies
   `credentials: "include"`, `ApiError`, `errorMessage` pour les toasts), `endpoints.ts` (tous les chemins),
-  un service par ressource (`auth.ts`, `parametres.ts`) qui traduit les DTO de l'API (noms français) vers les
+  un service par ressource (`auth.ts`, `parametres.ts`, `prestations.ts`) qui traduit les DTO de l'API (noms français) vers les
   types du front. Les composants n'appellent jamais l'API : ils passent par les stores.
-- `lib/stores/` : **un store = une ressource d'API**. `auth-store`, `admin-store` et `settings-store` sont
-  alimentés par `lib/api/` (non persistés ; hook `use…Hydrated` créé par `createLoadHook` de `remote.ts`, qui
+- `lib/stores/` : **un store = une ressource d'API**. `auth-store`, `admin-store`, `settings-store` et
+  `prestations-store` sont alimentés par `lib/api/` (non persistés ; hook `use…Hydrated` créé par `createLoadHook` de `remote.ts`, qui
   lance le chargement) ; leurs actions sont asynchrones et lèvent une `ApiError` en cas d'échec. Le site et l'admin lisent et écrivent les
-  mêmes stores (`catalog`, `reservation`, `order`, `settings`, `auth`, `admin`, `visit`) ; `cart` et
+  mêmes stores (`prestations`, `catalog`, `reservation`, `order`, `settings`, `auth`, `admin`, `visit`) ; `cart` et
   `booking` restent côté navigateur. La table store → endpoint est dans `docs/backend.md` : la tenir à
   jour quand on ajoute une action de store.
 - Les stores persistés sont en hydratation manuelle (`skipHydration`) : utiliser le hook
   `use…Hydrated` créé par `createHydrationHook` avant d'afficher leurs données, et `ensureHydrated` avant
   de modifier un store hors de son écran (`lib/stores/hydration.ts`). Les changements de forme passent
   par `version` / `migrate` du middleware `persist`.
+- Messages d'erreur : ils disent ce qui s'est réellement passé. Titre du toast = ce qui n'a pas été fait
+  (« « Mains » n'a pas été supprimée »), description = `errorMessage(error)` (message de l'API, ou cause
+  réseau / serveur / navigateur). Jamais de toast de succès avant la réponse de l'API, jamais une liste vide à la
+  place d'une lecture échouée.
 - Le catalogue produits fusionne les produits de `lib/produits.ts` avec `productOverrides`,
   `customProducts` et `removedProductIds` du `catalog-store`.
 - Validation des formulaires : react-hook-form + zod (`lib/validation.ts`, `components/forms/form-fields.tsx`).

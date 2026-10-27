@@ -3,6 +3,7 @@
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { formatPrice } from "@/lib/prestations";
 import {
   canCancel,
@@ -16,7 +17,7 @@ import {
   type Reservation,
 } from "@/lib/reservations";
 import { useBookingStore } from "@/lib/stores/booking-store";
-import { useAllPrestations } from "@/lib/stores/catalog-store";
+import { useAllPrestations, usePrestationsStore } from "@/lib/stores/prestations-store";
 import { useSettingsStore } from "@/lib/stores/settings-store";
 import { cn } from "@/lib/utils";
 import { CancelDialog } from "./cancel-dialog";
@@ -26,6 +27,7 @@ export const ReservationCard = ({ reservation }: { reservation: Reservation }) =
   const toggle = useBookingStore((s) => s.toggle);
   const clear = useBookingStore((s) => s.clear);
   const allPrestations = useAllPrestations();
+  const catalogueError = usePrestationsStore((s) => s.loadError);
   const noticeDays = useSettingsStore((s) => s.rules.cancellationNoticeDays);
 
   // Prestations et prix figés au moment de la demande
@@ -35,8 +37,24 @@ export const ReservationCard = ({ reservation }: { reservation: Reservation }) =
 
   // Reprend les mêmes prestations (encore proposées) pour une nouvelle réservation
   const bookAgain = () => {
+    if (catalogueError) {
+      toast.error("Impossible de reprendre ces prestations", {
+        description: `La carte des prestations n'a pas pu être chargée : ${catalogueError}`,
+      });
+      return;
+    }
     clear();
-    allPrestations.filter((p) => reservation.prestationIds.includes(p.id)).forEach((p) => toggle(p.id));
+    const offered = allPrestations.filter((p) => reservation.prestationIds.includes(p.id));
+    offered.forEach((p) => toggle(p.id));
+    const withdrawn = reservation.prestationIds.length - offered.length;
+    if (withdrawn > 0) {
+      toast(
+        withdrawn > 1
+          ? `${withdrawn} prestations de cette réservation ne sont plus proposées`
+          : "Une prestation de cette réservation n'est plus proposée",
+        { description: "Seules les prestations encore à la carte ont été reprises." },
+      );
+    }
     router.push("/reservation");
   };
 

@@ -2,7 +2,7 @@
 
 import { ArrowDown, ArrowUp, Pencil, Plus, Trash2 } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
   AdminPageHeader,
@@ -21,16 +21,58 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   formatPrice,
   type Prestation,
   type PrestationCategory,
 } from "@/lib/prestations";
+import { errorMessage } from "@/lib/api/client";
 import {
-  useCatalogHydrated,
-  useCatalogStore,
-} from "@/lib/stores/catalog-store";
+  usePrestationsHydrated,
+  usePrestationsStore,
+} from "@/lib/stores/prestations-store";
 import { iconButtonClassName } from "../../boutique/_components/product-actions";
+
+// Échec d'une action de la carte : le titre dit ce qui n'a pas été fait, la description pourquoi
+export const reportFailure = (title: string) => (error: unknown) => {
+  toast.error(title, { description: errorMessage(error) });
+};
+
+// Bandeau affiché quand la carte n'a pas pu être lue : les données affichées sont absentes ou périmées
+export const CarteLoadError = () => {
+  const loadError = usePrestationsStore((s) => s.loadError);
+  const load = usePrestationsStore((s) => s.load);
+  const [retrying, setRetrying] = useState(false);
+
+  if (!loadError) return null;
+
+  const retry = async () => {
+    setRetrying(true);
+    await load();
+    setRetrying(false);
+  };
+
+  return (
+    <AdminPanel role="alert" className="flex flex-wrap items-center justify-between gap-4">
+      <div className="font-sans text-sm text-cocoa">
+        <p className="font-medium">
+          La carte des prestations n&apos;a pas pu être lue : la liste ci-dessous
+          peut être incomplète ou dépassée.
+        </p>
+        <p className="mt-1 text-taupe">{loadError}</p>
+      </div>
+      <button
+        type="button"
+        onClick={retry}
+        disabled={retrying}
+        className={adminSmallOutlineButtonClassName}
+      >
+        {retrying ? "Lecture…" : "Relire la carte"}
+      </button>
+    </AdminPanel>
+  );
+};
 
 export const dialogClassName =
   "gap-0 rounded-[var(--radius)] bg-pearl p-6 font-sans text-cocoa sm:max-w-md md:p-8";
@@ -57,8 +99,9 @@ const PrestationForm = ({
   prestation,
   trigger,
 }: PrestationFormProps) => {
-  const savePrestation = useCatalogStore((s) => s.savePrestation);
+  const savePrestation = usePrestationsStore((s) => s.savePrestation);
   const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [name, setName] = useState(prestation?.name ?? "");
   const [price, setPrice] = useState(
     prestation ? String(prestation.price) : "",
@@ -73,8 +116,10 @@ const PrestationForm = ({
     name.trim().length < 2 ? "Indiquez le nom de la prestation" : undefined;
   const priceError =
     !price || !Number.isInteger(priceValue) || priceValue <= 0
-      ? "Indiquez un prix en FCFA"
-      : undefined;
+      ? "Indiquez un prix en FCFA (nombre entier)"
+      : priceValue > 10_000_000
+        ? "Prix : 10 000 000 FCFA au plus"
+        : undefined;
 
   const reset = () => {
     setName(prestation?.name ?? "");
@@ -85,24 +130,34 @@ const PrestationForm = ({
     setSubmitted(false);
   };
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitted(true);
     if (nameError || priceError) return;
 
-    savePrestation(categoryId, {
-      id:
-        prestation?.id ?? `${slugify(name)}-${crypto.randomUUID().slice(0, 4)}`,
+    const fields = {
       name: name.trim(),
       price: priceValue,
       fromPrice: fromPrice || undefined,
       note: note.trim() || undefined,
-    });
-    setOpen(false);
-    toast.success(prestation ? "Prestation modifiée" : "Prestation ajoutée", {
-      description: name.trim(),
-    });
-    if (!prestation) reset();
+    };
+    setSaving(true);
+    try {
+      await savePrestation(categoryId, fields, prestation?.id);
+      setOpen(false);
+      toast.success(prestation ? "Prestation modifiée" : "Prestation ajoutée", {
+        description: fields.name,
+      });
+      if (!prestation) reset();
+    } catch (error) {
+      reportFailure(
+        prestation
+          ? `« ${prestation.name} » n'a pas été modifiée`
+          : `« ${fields.name} » n'a pas été ajoutée`,
+      )(error);
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -130,6 +185,7 @@ const PrestationForm = ({
             <input
               id="prestation-name"
               value={name}
+              maxLength={80}
               onChange={(e) => setName(e.target.value)}
               aria-invalid={submitted && !!nameError}
               className={adminInputClassName}
@@ -191,6 +247,7 @@ const PrestationForm = ({
             <input
               id="prestation-note"
               value={note}
+              maxLength={120}
               onChange={(e) => setNote(e.target.value)}
               placeholder="Mèches incluses, mains et pieds…"
               className={adminInputClassName}
@@ -208,9 +265,10 @@ const PrestationForm = ({
             </DialogClose>
             <button
               type="submit"
+              disabled={saving}
               className={`w-full sm:w-auto ${adminButtonClassName}`}
             >
-              Enregistrer
+              {saving ? "Enregistrement…" : "Enregistrer"}
             </button>
           </div>
         </form>
@@ -220,7 +278,7 @@ const PrestationForm = ({
 };
 
 const DeletePrestation = ({ prestation }: { prestation: Prestation }) => {
-  const removePrestation = useCatalogStore((s) => s.removePrestation);
+  const removePrestation = usePrestationsStore((s) => s.removePrestation);
 
   return (
     <Dialog>
@@ -254,10 +312,13 @@ const DeletePrestation = ({ prestation }: { prestation: Prestation }) => {
           <DialogClose asChild>
             <button
               type="button"
-              onClick={() => {
-                removePrestation(prestation.id);
-                toast("Prestation supprimée", { description: prestation.name });
-              }}
+              onClick={() =>
+                removePrestation(prestation.id).then(
+                  () =>
+                    toast("Prestation supprimée", { description: prestation.name }),
+                  reportFailure(`« ${prestation.name} » n'a pas été supprimée`),
+                )
+              }
               className={`w-full sm:w-auto ${adminButtonClassName}`}
             >
               Supprimer
@@ -273,13 +334,35 @@ const moveButtonClassName = `${iconButtonClassName} disabled:pointer-events-none
 
 // Prestations par catégorie, dans l'ordre affiché sur /prestations et proposé à la réservation
 export const PrestationsEditor = () => {
-  const hydrated = useCatalogHydrated();
-  const categories = useCatalogStore((s) => s.categories);
-  const movePrestation = useCatalogStore((s) => s.movePrestation);
+  const hydrated = usePrestationsHydrated();
+  const categories = usePrestationsStore((s) => s.categories);
+  const movePrestation = usePrestationsStore((s) => s.movePrestation);
+
+  // Onglet actif = catégorie du hash (#id), pour les liens venant de /admin/prestations/categories
+  const [activeId, setActiveId] = useState<string>();
+  useEffect(() => {
+    const readHash = () => setActiveId(decodeURIComponent(window.location.hash.slice(1)) || undefined);
+    readHash();
+    window.addEventListener("hashchange", readHash);
+    return () => window.removeEventListener("hashchange", readHash);
+  }, []);
+
+  const selectCategory = (id: string) => {
+    setActiveId(id);
+    window.history.replaceState(null, "", `#${id}`);
+  };
+
+  const move = (prestation: Prestation, offset: -1 | 1) =>
+    movePrestation(prestation.id, offset).catch(
+      reportFailure(`« ${prestation.name} » n'a pas été déplacée`),
+    );
 
   if (!hydrated) return <div className="min-h-96" aria-hidden />;
 
   const total = categories.reduce((sum, c) => sum + c.prestations.length, 0);
+  // Catégorie inconnue (supprimée, hash erroné) : premier onglet
+  const activeCategory =
+    categories.find((c) => c.id === activeId) ?? categories[0];
 
   return (
     <div className="flex flex-col gap-8">
@@ -290,7 +373,8 @@ export const PrestationsEditor = () => {
         {categories.length > 0 && (
           <PrestationForm
             categories={categories}
-            categoryId={categories[0].id}
+            key={activeCategory.id}
+            categoryId={activeCategory.id}
             trigger={
               <button type="button" className={adminButtonClassName}>
                 <Plus className="size-4" strokeWidth={1.75} />
@@ -301,10 +385,34 @@ export const PrestationsEditor = () => {
         )}
       </AdminPageHeader>
 
+      <CarteLoadError />
+
       {categories.length > 0 ? (
-        <div className="mx-auto flex w-full max-w-3xl flex-col gap-8">
+        <Tabs
+          value={activeCategory.id}
+          onValueChange={selectCategory}
+          className="mx-auto w-full max-w-3xl flex-col gap-6"
+        >
+          <TabsList
+            variant="line"
+            aria-label="Catégories de prestations"
+            className="h-auto! w-full justify-start gap-2 overflow-x-auto overflow-y-hidden rounded-none border-b border-sand p-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          >
+            {categories.map((category) => (
+              <TabsTrigger
+                key={category.id}
+                value={category.id}
+                className="mb-3 h-auto flex-none cursor-pointer rounded-full px-4 py-2 font-sans text-sm font-normal text-taupe after:hidden hover:text-cocoa focus-visible:border-transparent focus-visible:ring-0 focus-visible:outline-none data-[state=active]:bg-sand! data-[state=active]:text-cocoa"
+              >
+                {category.name}
+                <span className="text-xs text-taupe">
+                  {category.prestations.length}
+                </span>
+              </TabsTrigger>
+            ))}
+          </TabsList>
           {categories.map((category) => (
-            <section key={category.id} id={category.id} className="scroll-mt-24">
+            <TabsContent key={category.id} value={category.id}>
               <AdminPanel className="flex flex-col gap-5">
                 <header>
                   <h2 className="font-serif text-xl leading-tight text-cocoa">
@@ -328,7 +436,7 @@ export const PrestationsEditor = () => {
                           <div className="flex shrink-0 items-center">
                             <button
                               type="button"
-                              onClick={() => movePrestation(prestation.id, -1)}
+                              onClick={() => move(prestation, -1)}
                               disabled={index === 0}
                               aria-label={`Monter ${prestation.name}`}
                               title="Monter"
@@ -338,7 +446,7 @@ export const PrestationsEditor = () => {
                             </button>
                             <button
                               type="button"
-                              onClick={() => movePrestation(prestation.id, 1)}
+                              onClick={() => move(prestation, 1)}
                               disabled={index === category.prestations.length - 1}
                               aria-label={`Descendre ${prestation.name}`}
                               title="Descendre"
@@ -399,9 +507,9 @@ export const PrestationsEditor = () => {
                   }
                 />
               </AdminPanel>
-            </section>
+            </TabsContent>
           ))}
-        </div>
+        </Tabs>
       ) : (
         <p className="text-center font-serif text-lg text-cocoa">
           Aucune catégorie :{" "}

@@ -23,4 +23,14 @@ export const endpoints = {
     salon: "/admin/parametres/salon",
     livraisons: "/admin/parametres/livraisons",
   },
+  prestations: {
+    lecture: "/prestations",
+    categories: "/admin/prestations/categories",
+    categorie: (id: string) => `/admin/prestations/categories/${encodeURIComponent(id)}`,
+    ordreCategories: "/admin/prestations/categories/ordre",
+    ordrePrestations: (categoryId: string) =>
+      `/admin/prestations/categories/${encodeURIComponent(categoryId)}/ordre`,
+    creation: "/admin/prestations",
+    prestation: (id: string) => `/admin/prestations/${encodeURIComponent(id)}`,
+  },
 } as const;

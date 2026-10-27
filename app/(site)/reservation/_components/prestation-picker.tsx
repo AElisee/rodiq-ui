@@ -3,16 +3,19 @@
 import { Check } from "lucide-react";
 import { formatPrice } from "@/lib/prestations";
 import { useBookingStore } from "@/lib/stores/booking-store";
-import { usePrestationCategories } from "@/lib/stores/catalog-store";
+import { usePrestationCategories } from "@/lib/stores/prestations-store";
 import { cn } from "@/lib/utils";
+import { CarteGuard } from "../../prestations/_components/carte-guard";
 
 // Étape 1 : sélection des prestations (partagée avec la page /prestations)
 export const PrestationPicker = () => {
   const selectedIds = useBookingStore((s) => s.selectedIds);
   const toggle = useBookingStore((s) => s.toggle);
-  const prestationCategories = usePrestationCategories();
+  // Catégories vides masquées
+  const prestationCategories = usePrestationCategories().filter((category) => category.prestations.length > 0);
 
   return (
+    <CarteGuard>
     <div className="flex flex-col gap-8">
       {prestationCategories.map((category) => (
         <div key={category.id} role="group" aria-labelledby={`picker-${category.id}`}>
@@ -45,5 +48,6 @@ export const PrestationPicker = () => {
         </div>
       ))}
     </div>
+    </CarteGuard>
   );
 };

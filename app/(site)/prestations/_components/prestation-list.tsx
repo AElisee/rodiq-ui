@@ -1,7 +1,8 @@
 "use client";
 
 import { formatPrice } from "@/lib/prestations";
-import { usePrestationCategories } from "@/lib/stores/catalog-store";
+import { usePrestationCategories } from "@/lib/stores/prestations-store";
+import { CarteGuard } from "./carte-guard";
 import { ReserveButton } from "./reserve-button";
 
 // Grille tarifaire (modifiable depuis l'admin) avec accès rapide aux catégories
@@ -10,7 +11,7 @@ export const PrestationList = () => {
   const prestationCategories = usePrestationCategories().filter((category) => category.prestations.length > 0);
 
   return (
-    <>
+    <CarteGuard>
       <nav aria-label="Catégories de prestations" className="mt-10 flex flex-wrap justify-center gap-3">
         {prestationCategories.map((category) => (
           <a
@@ -65,6 +66,6 @@ export const PrestationList = () => {
             </section>
           ))}
       </div>
-    </>
+    </CarteGuard>
   );
 };

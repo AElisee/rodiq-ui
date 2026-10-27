@@ -1,7 +1,6 @@
 import { useMemo } from "react";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
-import { prestationCategories, type Prestation, type PrestationCategory } from "@/lib/prestations";
 import {
   DEFAULT_LOW_STOCK_THRESHOLD,
   DEFAULT_STOCK,
@@ -46,23 +45,12 @@ export type CatalogProduct = Product & { hidden?: boolean; custom?: boolean };
 export type StockChange = { productId: string; variantId?: string; quantity: number };
 
 type CatalogState = {
-  categories: PrestationCategory[];
   productOverrides: Record<string, ProductOverride>;
   customProducts: CatalogProduct[];
   // Produits du catalogue supprimés depuis l'admin
   removedProductIds: string[];
   // Catégories de la boutique, dans l'ordre d'affichage
   productCategories: ProductCategory[];
-  // Ajoute une catégorie de prestations, ou modifie son nom et son accroche si elle existe déjà
-  savePrestationCategory: (category: Omit<PrestationCategory, "prestations">) => void;
-  // Supprime une catégorie vide (l'interface empêche de supprimer une catégorie qui a des prestations)
-  removePrestationCategory: (id: string) => void;
-  // Avance (-1) ou recule (+1) la catégorie dans l'ordre d'affichage
-  movePrestationCategory: (id: string, offset: -1 | 1) => void;
-  savePrestation: (categoryId: string, prestation: Prestation) => void;
-  removePrestation: (id: string) => void;
-  // Avance (-1) ou recule (+1) la prestation dans l'ordre d'affichage de sa catégorie
-  movePrestation: (id: string, offset: -1 | 1) => void;
   // Ajoute ou modifie un produit (catalogue : enregistré comme modification ; sinon produit ajouté)
   saveProduct: (product: CatalogProduct) => void;
   // Supprime un produit (catalogue : retiré de la liste ; produit ajouté : effacé)
@@ -148,55 +136,15 @@ const moveStock = <T extends Pick<Product, "stock"> & { variants?: ProductVarian
       }
     : { ...product, stock: Math.max(0, (product.stock ?? 0) + quantity) };
 
-// Catalogue (prestations et boutique) modifié depuis l'admin et lu par le site.
+// Catalogue de la boutique modifié depuis l'admin et lu par le site (les prestations : `prestations-store`).
 // Maquette : conservé dans le navigateur en attendant l'API.
 export const useCatalogStore = create<CatalogState>()(
   persist(
     (set) => ({
-      categories: prestationCategories,
       productOverrides: {},
       customProducts: [],
       removedProductIds: [],
       productCategories,
-      savePrestationCategory: ({ id, name, tagline }) =>
-        set((s) => {
-          const index = s.categories.findIndex((c) => c.id === id);
-          return {
-            categories:
-              index === -1
-                ? [...s.categories, { id, name, tagline, prestations: [] }]
-                : s.categories.with(index, { ...s.categories[index], name, tagline }),
-          };
-        }),
-      removePrestationCategory: (id) => set((s) => ({ categories: s.categories.filter((c) => c.id !== id) })),
-      movePrestationCategory: (id, offset) => set((s) => ({ categories: moveItem(s.categories, id, offset) })),
-      // Ajoute la prestation, ou la remplace si elle existe déjà (éventuellement dans une autre catégorie)
-      savePrestation: (categoryId, prestation) =>
-        set((s) => ({
-          categories: s.categories.map((c) => {
-            const others = c.prestations.filter((p) => p.id !== prestation.id);
-            if (c.id !== categoryId) return { ...c, prestations: others };
-            const index = c.prestations.findIndex((p) => p.id === prestation.id);
-            return {
-              ...c,
-              prestations:
-                index === -1 ? [...others, prestation] : c.prestations.with(index, prestation),
-            };
-          }),
-        })),
-      removePrestation: (id) =>
-        set((s) => ({
-          categories: s.categories.map((c) => ({
-            ...c,
-            prestations: c.prestations.filter((p) => p.id !== id),
-          })),
-        })),
-      movePrestation: (id, offset) =>
-        set((s) => ({
-          categories: s.categories.map((c) =>
-            c.prestations.some((p) => p.id === id) ? { ...c, prestations: moveItem(c.prestations, id, offset) } : c,
-          ),
-        })),
       saveProduct: (product) =>
         set((s) => {
           const base = getProduct(product.id);
@@ -256,10 +204,12 @@ export const useCatalogStore = create<CatalogState>()(
     {
       name: "rodiq-catalog",
       // v1 : stock, seuil d'alerte, déclinaisons et catégorie modifiables ; « épuisé » déduit du stock
-      version: 1,
+      // v2 : prestations déplacées vers l'API (`prestations-store`)
+      version: 2,
       migrate: (persisted, version) => {
         const state = persisted as Partial<CatalogState> & {
           productOverrides?: Record<string, Partial<ProductOverride> & { soldOut?: boolean }>;
+          categories?: unknown;
         };
         if (version < 1) {
           state.productOverrides = Object.fromEntries(
@@ -276,6 +226,7 @@ export const useCatalogStore = create<CatalogState>()(
           );
           state.customProducts = [];
         }
+        if (version < 2) delete state.categories;
         return state as CatalogState;
       },
       storage: createJSONStorage(() => localStorage),
@@ -287,16 +238,6 @@ export const useCatalogStore = create<CatalogState>()(
 export const useCatalogHydrated = createHydrationHook(useCatalogStore);
 
 // Hooks de lecture pour le site : déclenchent la relecture du catalogue sauvegardé
-
-export const usePrestationCategories = () => {
-  useCatalogHydrated();
-  return useCatalogStore((s) => s.categories);
-};
-
-export const useAllPrestations = () => {
-  const categories = usePrestationCategories();
-  return useMemo(() => categories.flatMap((c) => c.prestations), [categories]);
-};
 
 // Tous les produits avec les modifications de l'admin (y compris les produits masqués, hors produits supprimés)
 export const useCatalogProducts = () => {

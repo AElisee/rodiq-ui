@@ -21,9 +21,9 @@ import {
 } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { PrestationCategory } from "@/lib/prestations";
-import { useCatalogHydrated, useCatalogStore } from "@/lib/stores/catalog-store";
+import { usePrestationsHydrated, usePrestationsStore } from "@/lib/stores/prestations-store";
 import { iconButtonClassName } from "../../boutique/_components/product-actions";
-import { dialogClassName, slugify } from "./prestations-editor";
+import { CarteLoadError, dialogClassName, reportFailure, slugify } from "./prestations-editor";
 
 type CategoryFormProps = {
   // Absente : création d'une catégorie
@@ -34,21 +34,22 @@ type CategoryFormProps = {
 
 // Ajout ou modification d'une catégorie (nom et accroche affichés sur /prestations)
 const CategoryForm = ({ category, categories, trigger }: CategoryFormProps) => {
-  const savePrestationCategory = useCatalogStore((s) => s.savePrestationCategory);
+  const savePrestationCategory = usePrestationsStore((s) => s.savePrestationCategory);
   const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [name, setName] = useState(category?.name ?? "");
   const [tagline, setTagline] = useState(category?.tagline ?? "");
   const [submitted, setSubmitted] = useState(false);
 
   const trimmedName = name.trim();
-  const duplicate = categories.some(
+  const duplicate = categories.find(
     (c) => c.id !== category?.id && slugify(c.name) === slugify(trimmedName),
   );
   const nameError =
     trimmedName.length < 2
       ? "Indiquez le nom de la catégorie"
       : duplicate
-        ? "Une catégorie porte déjà ce nom"
+        ? `La catégorie « ${duplicate.name} » existe déjà (majuscules et accents ne comptent pas)`
         : undefined;
 
   const reset = () => {
@@ -57,25 +58,25 @@ const CategoryForm = ({ category, categories, trigger }: CategoryFormProps) => {
     setSubmitted(false);
   };
 
-  // Identifiant tiré du nom, rendu unique ; conservé à la modification (sert d'ancre sur /prestations)
-  const newId = () => {
-    const base = slugify(trimmedName) || "categorie";
-    const ids = new Set(categories.map((c) => c.id));
-    if (!ids.has(base)) return base;
-    let n = 2;
-    while (ids.has(`${base}-${n}`)) n++;
-    return `${base}-${n}`;
-  };
-
-  const submit = (e: React.FormEvent) => {
+  // L'identifiant est généré par l'API à la création, puis conservé (sert d'ancre sur /prestations)
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitted(true);
     if (nameError) return;
 
-    savePrestationCategory({ id: category?.id ?? newId(), name: trimmedName, tagline: tagline.trim() });
-    setOpen(false);
-    toast.success(category ? "Catégorie modifiée" : "Catégorie ajoutée", { description: trimmedName });
-    if (!category) reset();
+    setSaving(true);
+    try {
+      await savePrestationCategory({ name: trimmedName, tagline: tagline.trim() }, category?.id);
+      setOpen(false);
+      toast.success(category ? "Catégorie modifiée" : "Catégorie ajoutée", { description: trimmedName });
+      if (!category) reset();
+    } catch (error) {
+      reportFailure(
+        category ? `« ${category.name} » n'a pas été modifiée` : `« ${trimmedName} » n'a pas été ajoutée`,
+      )(error);
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -103,6 +104,7 @@ const CategoryForm = ({ category, categories, trigger }: CategoryFormProps) => {
             <input
               id="prestation-category-name"
               value={name}
+              maxLength={60}
               onChange={(e) => setName(e.target.value)}
               placeholder="Mains, Pieds…"
               aria-invalid={submitted && !!nameError}
@@ -117,6 +119,7 @@ const CategoryForm = ({ category, categories, trigger }: CategoryFormProps) => {
             <input
               id="prestation-category-tagline"
               value={tagline}
+              maxLength={120}
               onChange={(e) => setTagline(e.target.value)}
               placeholder="Manucure & beauté des ongles"
               className={adminInputClassName}
@@ -129,8 +132,8 @@ const CategoryForm = ({ category, categories, trigger }: CategoryFormProps) => {
                 Annuler
               </button>
             </DialogClose>
-            <button type="submit" className={`w-full sm:w-auto ${adminButtonClassName}`}>
-              Enregistrer
+            <button type="submit" disabled={saving} className={`w-full sm:w-auto ${adminButtonClassName}`}>
+              {saving ? "Enregistrement…" : "Enregistrer"}
             </button>
           </div>
         </form>
@@ -141,7 +144,7 @@ const CategoryForm = ({ category, categories, trigger }: CategoryFormProps) => {
 
 // Suppression d'une catégorie vide ; sinon, explique qu'il faut d'abord déplacer ses prestations
 const DeleteCategory = ({ category }: { category: PrestationCategory }) => {
-  const removePrestationCategory = useCatalogStore((s) => s.removePrestationCategory);
+  const removePrestationCategory = usePrestationsStore((s) => s.removePrestationCategory);
   const count = category.prestations.length;
   const blocked = count > 0;
 
@@ -178,10 +181,12 @@ const DeleteCategory = ({ category }: { category: PrestationCategory }) => {
             <DialogClose asChild>
               <button
                 type="button"
-                onClick={() => {
-                  removePrestationCategory(category.id);
-                  toast("Catégorie supprimée", { description: category.name });
-                }}
+                onClick={() =>
+                  removePrestationCategory(category.id).then(
+                    () => toast("Catégorie supprimée", { description: category.name }),
+                    reportFailure(`« ${category.name} » n'a pas été supprimée`),
+                  )
+                }
                 className={`w-full sm:w-auto ${adminButtonClassName}`}
               >
                 Supprimer
@@ -196,9 +201,14 @@ const DeleteCategory = ({ category }: { category: PrestationCategory }) => {
 
 // Catégories de prestations : ajout, nom, accroche, ordre d'affichage et suppression
 export const PrestationCategoriesEditor = () => {
-  const hydrated = useCatalogHydrated();
-  const categories = useCatalogStore((s) => s.categories);
-  const movePrestationCategory = useCatalogStore((s) => s.movePrestationCategory);
+  const hydrated = usePrestationsHydrated();
+  const categories = usePrestationsStore((s) => s.categories);
+  const movePrestationCategory = usePrestationsStore((s) => s.movePrestationCategory);
+
+  const move = (category: PrestationCategory, offset: -1 | 1) =>
+    movePrestationCategory(category.id, offset).catch(
+      reportFailure(`« ${category.name} » n'a pas été déplacée`),
+    );
 
   if (!hydrated) return <div className="min-h-96" aria-hidden />;
 
@@ -218,6 +228,8 @@ export const PrestationCategoriesEditor = () => {
           }
         />
       </AdminPageHeader>
+
+      <CarteLoadError />
 
       {categories.length > 0 ? (
         <div className="rounded-[var(--radius)] border border-sand">
@@ -239,7 +251,7 @@ export const PrestationCategoriesEditor = () => {
                       <div className="flex items-center">
                         <button
                           type="button"
-                          onClick={() => movePrestationCategory(category.id, -1)}
+                          onClick={() => move(category, -1)}
                           disabled={index === 0}
                           aria-label={`Monter ${category.name}`}
                           title="Monter"
@@ -249,7 +261,7 @@ export const PrestationCategoriesEditor = () => {
                         </button>
                         <button
                           type="button"
-                          onClick={() => movePrestationCategory(category.id, 1)}
+                          onClick={() => move(category, 1)}
                           disabled={index === categories.length - 1}
                           aria-label={`Descendre ${category.name}`}
                           title="Descendre"

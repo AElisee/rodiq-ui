@@ -5,7 +5,7 @@ import { X } from "lucide-react";
 import { useEffect } from "react";
 import { formatPrice } from "@/lib/prestations";
 import { useBookingStore } from "@/lib/stores/booking-store";
-import { useAllPrestations } from "@/lib/stores/catalog-store";
+import { useAllPrestations } from "@/lib/stores/prestations-store";
 
 // Barre fixe en bas d'écran : récapitulatif de la sélection et accès à la réservation
 export const BookingBar = () => {

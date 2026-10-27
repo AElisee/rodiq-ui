@@ -10,7 +10,8 @@ un store par des appels API branche les deux côtés d'un coup.
 | ----------------------------------------- | ---------------------- | ------------------------------------------------ | ------------------------------------------ |
 | `auth-store` (**branché sur l'API**)      | session client         | connexion, inscription, réservation, commande    | lecture seule (Clientèle)                  |
 | `admin-store` (**branché sur l'API**)     | session admin          | —                                                | connexion `/admin/connexion`               |
-| `catalog-store` (`rodiq-catalog`)         | `prestation-categories`, `prestations`, `product-categories`, `products` | prestations, réservation, boutique, panier | Prestations › Catalogue prestations, Prestations › Catégories, Boutique › Produits, Boutique › Catégories |
+| `prestations-store` (**branché sur l'API**) | `prestations`        | prestations, réservation, mes réservations       | Prestations › Catalogue prestations, Prestations › Catégories |
+| `catalog-store` (`rodiq-catalog`)         | `product-categories`, `products` | boutique, panier                     | Boutique › Produits, Boutique › Catégories |
 | `reservation-store` (`rodiq-reservations`) | `reservations`        | réservation, mes réservations                    | Réservations, tableau de bord, Clientèle   |
 | `order-store` (`rodiq-orders`)            | `orders`               | commande, mes commandes                          | Commandes, tableau de bord, Clientèle      |
 | `settings-store` (**branché sur l'API**)  | `parametres`           | créneaux, horaires, contact, logo, frais de port | Réglages                                   |
@@ -53,18 +54,33 @@ Les types de référence sont dans `lib/reservations.ts`, `lib/commandes.ts`, `l
 
 ### Catalogue
 
-- `GET /prestations` (catégories dans l'ordre d'affichage, chacune avec ses prestations dans l'ordre) · admin :
-  `POST /admin/prestation-categories` et `PUT /admin/prestation-categories/:id` ← `savePrestationCategory`,
-  `DELETE /admin/prestation-categories/:id` ← `removePrestationCategory`,
-  `PUT /admin/prestation-categories/order` (liste des identifiants) ← `movePrestationCategory`
-- `PUT /admin/prestations/:id` ← `savePrestation` (crée ou modifie, et peut changer de catégorie),
-  `DELETE /admin/prestations/:id` ← `removePrestation`,
-  `PUT /admin/prestation-categories/:id/prestations/order` (liste des identifiants) ← `movePrestation`
-- Une catégorie de prestations a un `id` (slug tiré du nom, conservé ensuite : il sert d'ancre sur
-  `/prestations`), un `name` et une `tagline` (accroche, peut être vide). Une prestation a un `id`
-  (slug du nom + suffixe aléatoire), un `name`, un `price`, `fromPrice` (prix « dès ») et une `note`. Le site
-  n'affiche que les catégories qui ont au moins une prestation. Les catégories de départ
-  (`prestationCategories` de `lib/prestations.ts`) servent de données initiales.
+Prestations : implémenté dans `api-rodiq/src/prestations/`, branché via `lib/api/prestations.ts` et
+`prestations-store`. Chaque écriture admin renvoie **toute la carte** (même forme que `GET /prestations`) : le
+store remplace `categories` avec la réponse ; sur un refus 400 / 404 / 409 il relit la carte (elle a pu être
+modifiée ailleurs). Si la lecture échoue, `loadError` garde la raison : le site l'affiche au lieu d'une carte
+vide (`CarteGuard`), l'admin affiche un bandeau « Relire la carte » (`CarteLoadError`). Noms de champs : catégorie `{ id, nom, accroche, prestations }`, prestation
+`{ id, nom, prix, prixAPartirDe, precision }` (`accroche` et `precision` valent `""` si vides). Les identifiants
+sont générés par le serveur (catégorie : slug du nom, suffixé `-2`… s'il est pris, conservé ensuite ;
+prestation : slug + 4 caractères aléatoires).
+
+- `GET /prestations` (public) : catégories dans l'ordre d'affichage, vides comprises, chacune avec ses
+  prestations dans l'ordre ; liste vide tant que rien n'est créé. Le site masque les catégories vides.
+- `POST /admin/prestations/categories` (`{ nom, accroche }`, placée en fin) et
+  `PUT /admin/prestations/categories/:id` ← `savePrestationCategory` (**409** : nom déjà pris, casse et
+  accents ignorés ; **404** : catégorie inconnue)
+- `DELETE /admin/prestations/categories/:id` ← `removePrestationCategory` (**409** si elle a encore des
+  prestations)
+- `PUT /admin/prestations/categories/ordre` (`{ ids }` : tous les identifiants, dans le nouvel ordre) ←
+  `movePrestationCategory`
+- `POST /admin/prestations` (`{ categorieId, nom, prix, prixAPartirDe, precision }`, placée en fin de sa
+  catégorie) et `PUT /admin/prestations/:id` (même corps ; changer `categorieId` la place en fin de la
+  nouvelle catégorie) ← `savePrestation` (**400** : catégorie inconnue ; **404** : prestation inconnue)
+- `DELETE /admin/prestations/:id` ← `removePrestation`
+- `PUT /admin/prestations/categories/:id/ordre` (`{ ids }` : toutes les prestations de la catégorie) ←
+  `movePrestation`
+- Les actions `move…` du store (décalage -1 / +1) calculent la liste complète et l'envoient ; un ordre qui
+  n'est pas une permutation des identifiants existants est refusé (**400**). Les catégories de départ
+  (`prestationCategories` de `lib/prestations.ts`) ne sont pas créées automatiquement : à saisir depuis l'admin.
 - `GET /product-categories` (dans l'ordre d'affichage) · admin : `POST /admin/product-categories` et
   `PUT /admin/product-categories/:id` ← `saveProductCategory`, `DELETE /admin/product-categories/:id` ←
   `removeProductCategory`, `PUT /admin/product-categories/order` (liste des identifiants) ←
