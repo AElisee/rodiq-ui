@@ -4,9 +4,11 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
+import { toast } from "sonner";
 import { z } from "zod";
 import { FieldError, PasswordInput } from "@/components/forms/form-fields";
 import { adminButtonClassName, adminInputClassName, adminLabelClassName } from "@/components/admin/admin-ui";
+import { errorMessage } from "@/lib/api/client";
 import { useAdminHydrated, useAdminStore } from "@/lib/stores/admin-store";
 import { safeRedirect } from "@/lib/validation";
 
@@ -47,8 +49,11 @@ export const AdminLoginForm = () => {
   if (!hydrated || email) return <div className="min-h-72" aria-hidden />;
 
   const onSubmit = async (values: LoginValues) => {
-    const ok = await signIn(values.email, values.password);
-    setFailed(!ok);
+    try {
+      setFailed(!(await signIn(values.email, values.password)));
+    } catch (error) {
+      toast.error("Connexion impossible", { description: errorMessage(error) });
+    }
   };
 
   return (

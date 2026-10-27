@@ -19,9 +19,6 @@ const seeded = (seed: number) => () => {
   return ((t ^ (t >>> 14)) >>> 0) / 4_294_967_296;
 };
 
-// Même mot de passe que le compte de démonstration (rodiq2026)
-const DEMO_PASSWORD_HASH = "6feafd144aeefc2dd973df73378d6a7bc5c52a5e1987517fa60059251e27ca5a";
-
 const people = [
   ["Mariam", "Traoré", "05 12 34 56 78"],
   ["Fatou", "Bamba", "07 23 45 67 89"],
@@ -42,7 +39,6 @@ export const demoClientAccounts: Account[] = people.map(([firstName, lastName, p
   lastName,
   phone: `+225 ${phone}`,
   email: `${slug(firstName)}.${slug(lastName)}@exemple.ci`,
-  passwordHash: DEMO_PASSWORD_HASH,
   createdAt: addDays(new Date(), -100 + i * 11).toISOString(),
 }));
 

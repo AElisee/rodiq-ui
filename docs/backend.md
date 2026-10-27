@@ -8,12 +8,12 @@ un store par des appels API branche les deux côtés d'un coup.
 
 | Store (clé localStorage)                  | Ressource API          | Lu par le site                                   | Modifié par l'admin                        |
 | ----------------------------------------- | ---------------------- | ------------------------------------------------ | ------------------------------------------ |
-| `auth-store` (`rodiq-auth`)               | `accounts`, session    | connexion, inscription, réservation, commande    | lecture seule (Clientèle)                  |
-| `admin-store` (`rodiq-admin`)             | session admin          | —                                                | connexion `/admin/connexion`               |
+| `auth-store` (**branché sur l'API**)      | session client         | connexion, inscription, réservation, commande    | lecture seule (Clientèle)                  |
+| `admin-store` (**branché sur l'API**)     | session admin          | —                                                | connexion `/admin/connexion`               |
 | `catalog-store` (`rodiq-catalog`)         | `prestation-categories`, `prestations`, `product-categories`, `products` | prestations, réservation, boutique, panier | Prestations › Catalogue prestations, Prestations › Catégories, Boutique › Produits, Boutique › Catégories |
 | `reservation-store` (`rodiq-reservations`) | `reservations`        | réservation, mes réservations                    | Réservations, tableau de bord, Clientèle   |
 | `order-store` (`rodiq-orders`)            | `orders`               | commande, mes commandes                          | Commandes, tableau de bord, Clientèle      |
-| `settings-store` (`rodiq-settings`)       | `settings`             | créneaux, horaires, contact, logo, frais de port | Réglages                                   |
+| `settings-store` (**branché sur l'API**)  | `parametres`           | créneaux, horaires, contact, logo, frais de port | Réglages                                   |
 | `visit-store` (`rodiq-visits`)            | `stats/visits`         | compteur (une visite par session)                | tableau de bord                            |
 | `cart-store`, `booking-store`             | — (reste côté navigateur) | panier, sélection en cours                    | —                                          |
 
@@ -24,11 +24,15 @@ Les types de référence sont dans `lib/reservations.ts`, `lib/commandes.ts`, `l
 
 ### Comptes
 
-- `POST /auth/sign-up` ← `signUp` · `POST /auth/sign-in` ← `signIn` · `POST /auth/sign-out` ← `signOut`
-- `GET /me`
+- `POST /auth/sign-up` ← `signUp` (409 : e-mail déjà utilisé) · `POST /auth/sign-in` ← `signIn` ·
+  `POST /auth/sign-out` ← `signOut`
+- `GET /me` ← `restore` (lancé par `useAuthHydrated`)
+- Admin : `POST /admin/auth/sign-in` ← `signIn` · `POST /admin/auth/sign-out` ← `signOut` · `GET /admin/me` ←
+  `restore` (`useAdminHydrated`) ; un 401 sur une écriture admin appelle `expire` (retour à la connexion)
 - À l'inscription, rattacher au compte les réservations et commandes passées **sans compte** avec la même
   adresse e-mail (fait aujourd'hui par `linkGuestHistory` dans `auth-store.ts`).
-- `GET /admin/accounts` (Clientèle : comptes avec leurs réservations et commandes)
+- `GET /admin/accounts` (Clientèle : comptes avec leurs réservations et commandes) : **à créer**, l'écran
+  Clientèle affiche encore `demoClientAccounts`
 
 ### Réservations
 
@@ -82,9 +86,32 @@ Les types de référence sont dans `lib/reservations.ts`, `lib/commandes.ts`, `l
 
 ### Réglages
 
-- `GET /settings` (public : horaires, règles, contact, logos, adresse, position, frais de port)
-- Admin : un `PUT` par bloc de l'écran Réglages (`setRules`, `setDay`, `setSlotFormat`, `addClosedDate` /
-  `removeClosedDate`, `setPlatform`, `setLogo`, `setSalon`, `setLocation`, `setShipping`, `reset`)
+Implémenté dans `api-rodiq/src/settings/`. Routes et attributs en français (hors authentification) : même
+structure que l'état du `settings-store`, mais noms de champs traduits (`regles`, `semaine`,
+`dureeCreneauMinutes`, `placesParCreneau`, `fermetures`, `plateforme`, `salon`, `position`, `livraisons`…).
+Chaque écriture admin renvoie **tous** les réglages (même forme que `GET /parametres`) : le store peut
+remplacer son état avec la réponse.
+
+- `GET /parametres` (public : horaires, règles, fermetures à venir, contact, logos, adresse, position, frais
+  de port). Répond **404** tant que le salon n'est pas configuré ; les écritures ci-dessous aussi.
+- Première configuration : `POST /admin/parametres`, une seule fois (**409** ensuite). Même corps que la
+  lecture, sans les logos ni les fermetures (`plateforme`, `semaine`, `dureeCreneauMinutes`,
+  `placesParCreneau`, `regles`, `salon`, `position`, `livraisons`) ; logos et fermetures s'ajoutent ensuite
+  par leurs routes. ← `configure` (bouton « Créer les réglages » de l'écran Réglages, avec `defaultSettings`) ;
+  tant que le salon n'est pas configuré, le site affiche `defaultSettings`.
+- Onglet Plateforme : `PUT /admin/parametres/plateforme` ← `setPlatform` (sans les logos ; téléphones
+  acceptés avec ou sans `+225`, renvoyés au format `+225 07 00 00 00 00`),
+  `PUT /admin/parametres/logos/:variante` (`{ image }` en data URL, 500 Ko au plus) et
+  `DELETE /admin/parametres/logos/:variante` ← `setLogo`
+- Onglet Horaires et créneaux : `PUT /admin/parametres/horaires`
+  (`{ semaine, dureeCreneauMinutes, placesParCreneau }`, les 7 jours d'un coup) ← `setHours`
+- Onglet Réservation : `PUT /admin/parametres/regles` ← `setRules`
+- Onglet Fermetures : `POST /admin/parametres/fermetures` (`{ date, motif }`) ← `addClosedDate` (refuse une
+  date passée), `DELETE /admin/parametres/fermetures/:date` ← `removeClosedDate`
+- Onglet Salon et position : `PUT /admin/parametres/salon` (`{ adresse, position: { latitude, longitude } }`)
+  ← `setSalon`
+- Onglet Livraisons et expéditions : `PUT /admin/parametres/livraisons` (`{ domicile, expedition }`, chaque
+  tarif `{ destination, frais }`) ← `setShipping` (destinations uniques par liste)
 
 ## Règles à appliquer côté serveur
 

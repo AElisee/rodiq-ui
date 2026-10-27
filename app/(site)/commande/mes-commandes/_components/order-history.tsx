@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { orderFilterLabels, type OrderStatus } from "@/lib/commandes";
-import { useAuthHydrated, useAuthStore } from "@/lib/stores/auth-store";
+import { selectCurrentAccountId, useAuthHydrated, useAuthStore } from "@/lib/stores/auth-store";
 import { useOrderStore, useOrdersHydrated } from "@/lib/stores/order-store";
 import { cn } from "@/lib/utils";
 import { OrderCard } from "./order-card";
@@ -20,7 +20,7 @@ const filters: { value: OrderStatus | null; label: string }[] = [
 export const OrderHistory = () => {
   const hydrated = useOrdersHydrated();
   const authHydrated = useAuthHydrated();
-  const accountId = useAuthStore((s) => s.currentAccountId);
+  const accountId = useAuthStore(selectCurrentAccountId);
   const allOrders = useOrderStore((s) => s.orders);
   const [status, setStatus] = useState<OrderStatus | null>(null);
 

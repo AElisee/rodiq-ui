@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { statusMeta, type ReservationStatus } from "@/lib/reservations";
-import { useAuthHydrated, useAuthStore } from "@/lib/stores/auth-store";
+import { selectCurrentAccountId, useAuthHydrated, useAuthStore } from "@/lib/stores/auth-store";
 import { useReservationStore, useReservationsHydrated } from "@/lib/stores/reservation-store";
 import { cn } from "@/lib/utils";
 import { ReservationCard } from "./reservation-card";
@@ -20,7 +20,7 @@ const filters: { value: ReservationStatus | null; label: string }[] = [
 export const ReservationHistory = () => {
   const hydrated = useReservationsHydrated();
   const authHydrated = useAuthHydrated();
-  const accountId = useAuthStore((s) => s.currentAccountId);
+  const accountId = useAuthStore(selectCurrentAccountId);
   const allReservations = useReservationStore((s) => s.reservations);
   const [status, setStatus] = useState<ReservationStatus | null>(null);
 

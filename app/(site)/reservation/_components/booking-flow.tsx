@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import Link from "next/link";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useForm, useWatch } from "react-hook-form";
+import { toast } from "sonner";
 import { useShallow } from "zustand/react/shallow";
 import { z } from "zod";
 import {
@@ -15,6 +16,7 @@ import {
   Required,
   submitClassName,
 } from "@/components/forms/form-fields";
+import { errorMessage } from "@/lib/api/client";
 import { formatPrice } from "@/lib/prestations";
 import {
   contactChannels,
@@ -28,7 +30,6 @@ import {
 } from "@/lib/reservations";
 import {
   selectCurrentAccount,
-  selectEmailTaken,
   useAuthHydrated,
   useAuthStore,
 } from "@/lib/stores/auth-store";
@@ -174,7 +175,9 @@ export const BookingFlow = () => {
     });
   }, [account, reset, getValues]);
 
-  const emailTaken = useAuthStore(selectEmailTaken(values.email));
+  // Adresse refusée par l'API à la création du compte (409) : l'alerte disparaît dès que l'e-mail change
+  const [takenEmail, setTakenEmail] = useState<string>();
+  const emailTaken = !!takenEmail && takenEmail === values.email?.trim().toLowerCase();
 
   // Places restantes = capacité du créneau - réservations actives (null = illimité)
   const slots = useMemo<SlotAvailability[]>(() => {
@@ -244,8 +247,17 @@ export const BookingFlow = () => {
     };
 
     if (createAccount) {
-      const result = await signUp({ ...client, email: values.email, password: values.password });
-      if (!result.ok) return;
+      let result: Awaited<ReturnType<typeof signUp>>;
+      try {
+        result = await signUp({ ...client, email: values.email, password: values.password });
+      } catch (error) {
+        toast.error("Création du compte impossible", { description: errorMessage(error) });
+        return;
+      }
+      if (!result.ok) {
+        setTakenEmail(values.email.trim().toLowerCase());
+        return;
+      }
     }
 
     const reservation: Reservation = {
@@ -261,7 +273,7 @@ export const BookingFlow = () => {
       note: values.note || undefined,
       status: "en_attente",
       accountRequested: createAccount,
-      accountId: useAuthStore.getState().currentAccountId ?? undefined,
+      accountId: useAuthStore.getState().account?.id,
       createdAt: new Date().toISOString(),
     };
 

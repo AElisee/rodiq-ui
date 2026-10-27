@@ -13,6 +13,7 @@ import {
 } from "@/components/admin/admin-ui";
 import { FieldError } from "@/components/forms/form-fields";
 import { useSettingsStore, type LogoVariant, type PlatformInfo } from "@/lib/stores/settings-store";
+import { useSave } from "./use-save";
 import { cn } from "@/lib/utils";
 import { CI_DIAL_CODE, emailSchema, formatPhone, phoneSchema, withDialCode } from "@/lib/validation";
 
@@ -50,6 +51,7 @@ const socialFields: { key: keyof Draft["socials"]; label: string; placeholder: s
 const PlatformInfoForm = () => {
   const platform = useSettingsStore((s) => s.platform);
   const setPlatform = useSettingsStore((s) => s.setPlatform);
+  const { saving, run } = useSave();
   const [draft, setDraft] = useState<Draft>(() => toDraft(platform));
 
   const errors: Partial<Record<TextField | `socials.${keyof Draft["socials"]}`, string>> = {
@@ -104,20 +106,27 @@ const PlatformInfoForm = () => {
   const save = () => {
     const trim = (v: string) => v.trim();
     const phone = (v: string) => (v ? withDialCode(v) : "");
-    setPlatform({
-      name: trim(draft.name),
-      tagline: trim(draft.tagline),
-      email: trim(draft.email),
-      phone: phone(draft.phone),
-      phoneSecondary: phone(draft.phoneSecondary),
-      whatsapp: phone(draft.whatsapp),
-      socials: {
-        instagram: trim(draft.socials.instagram),
-        facebook: trim(draft.socials.facebook),
-        tiktok: trim(draft.socials.tiktok),
+    return run(
+      () =>
+        setPlatform({
+          name: trim(draft.name),
+          tagline: trim(draft.tagline),
+          email: trim(draft.email),
+          phone: phone(draft.phone),
+          phoneSecondary: phone(draft.phoneSecondary),
+          whatsapp: phone(draft.whatsapp),
+          socials: {
+            instagram: trim(draft.socials.instagram),
+            facebook: trim(draft.socials.facebook),
+            tiktok: trim(draft.socials.tiktok),
+          },
+        }),
+      () => {
+        // Reprend les valeurs normalisées par l'API (e-mail en minuscules, numéros au format +225)
+        setDraft(toDraft(useSettingsStore.getState().platform));
+        toast.success("Informations enregistrées", { description: "Le site affiche les nouvelles informations." });
       },
-    });
-    toast.success("Informations enregistrées", { description: "Le site affiche les nouvelles informations." });
+    );
   };
 
   return (
@@ -173,7 +182,7 @@ const PlatformInfoForm = () => {
 
       <div className="flex flex-wrap items-center justify-end gap-4">
         {changed && <p className="font-sans text-sm text-taupe">Modifications non enregistrées</p>}
-        <button type="button" onClick={save} disabled={!changed || invalid} className={adminButtonClassName}>
+        <button type="button" onClick={save} disabled={!changed || invalid || saving} className={adminButtonClassName}>
           Enregistrer les informations
         </button>
       </div>
@@ -217,6 +226,7 @@ const readAsDataUrl = (file: File) =>
 const LogoManager = () => {
   const { name, logos } = useSettingsStore((s) => s.platform);
   const setLogo = useSettingsStore((s) => s.setLogo);
+  const { saving, run } = useSave();
 
   const upload = async (variant: LogoVariant, file: File | undefined) => {
     if (!file) return;
@@ -228,8 +238,8 @@ const LogoManager = () => {
       toast.error("Image trop lourde", { description: "500 Ko maximum : préférez un SVG ou un PNG optimisé." });
       return;
     }
-    setLogo(variant, await readAsDataUrl(file));
-    toast.success("Logo mis à jour");
+    const dataUrl = await readAsDataUrl(file);
+    await run(() => setLogo(variant, dataUrl), () => toast.success("Logo mis à jour"));
   };
 
   return (
@@ -290,10 +300,8 @@ const LogoManager = () => {
                 {src && (
                   <button
                     type="button"
-                    onClick={() => {
-                      setLogo(variant, undefined);
-                      toast("Logo retiré");
-                    }}
+                    disabled={saving}
+                    onClick={() => run(() => setLogo(variant, undefined), () => toast("Logo retiré"))}
                     className={adminSmallOutlineButtonClassName}
                   >
                     <Trash2 className="size-3.5" strokeWidth={1.75} />

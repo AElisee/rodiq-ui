@@ -14,6 +14,7 @@ import {
   PasswordInput,
   submitClassName,
 } from "@/components/forms/form-fields";
+import { errorMessage } from "@/lib/api/client";
 import { selectCurrentAccount, useAuthHydrated, useAuthStore } from "@/lib/stores/auth-store";
 import { safeRedirect } from "@/lib/validation";
 
@@ -73,7 +74,13 @@ export const LoginForm = () => {
   }
 
   const onSubmit = async (values: LoginValues) => {
-    const ok = await signIn(values.email, values.password);
+    let ok: boolean;
+    try {
+      ok = await signIn(values.email, values.password);
+    } catch (error) {
+      toast.error("Connexion impossible", { description: errorMessage(error) });
+      return;
+    }
     setFailed(!ok);
     if (!ok) return;
 

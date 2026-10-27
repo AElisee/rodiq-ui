@@ -27,6 +27,7 @@ import {
 import { useSettingsHydrated, useSettingsStore, type GeoPoint } from "@/lib/stores/settings-store";
 import { PlatformSettings } from "./platform-settings";
 import { ShippingSettingsForm } from "./shipping-settings";
+import { useSave } from "./use-save";
 
 // Leaflet a besoin du navigateur : la carte n'est jamais rendue côté serveur
 const LocationMap = dynamic(() => import("@/components/map/location-map").then((m) => m.LocationMap), {
@@ -59,8 +60,8 @@ const OpeningHours = () => {
   const week = useSettingsStore((s) => s.week);
   const slotMinutes = useSettingsStore((s) => s.slotMinutes);
   const slotCapacity = useSettingsStore((s) => s.slotCapacity);
-  const setDay = useSettingsStore((s) => s.setDay);
-  const setSlotFormat = useSettingsStore((s) => s.setSlotFormat);
+  const setHours = useSettingsStore((s) => s.setHours);
+  const { saving, run } = useSave();
   const [draft, setDraft] = useState(week);
   const [minutes, setMinutes] = useState(slotMinutes);
   const [capacity, setCapacity] = useState(String(slotCapacity ?? 2));
@@ -79,11 +80,11 @@ const OpeningHours = () => {
   const update = (index: number, changes: Partial<DayHours>) =>
     setDraft((d) => d.map((day, i) => (i === index ? { ...day, ...changes } : day)));
 
-  const save = () => {
-    draft.forEach((day, i) => setDay(i, day));
-    setSlotFormat(minutes, capacityValue);
-    toast.success("Horaires enregistrés", { description: "Les créneaux du site sont mis à jour." });
-  };
+  const save = () =>
+    run(
+      () => setHours(draft, minutes, capacityValue),
+      () => toast.success("Horaires enregistrés", { description: "Les créneaux du site sont mis à jour." }),
+    );
 
   return (
     <AdminPanel className="flex flex-col gap-6">
@@ -224,7 +225,7 @@ const OpeningHours = () => {
 
       <div className="flex flex-wrap items-center justify-end gap-4">
         {changed && <p className="font-sans text-sm text-taupe">Modifications non enregistrées</p>}
-        <button type="button" onClick={save} disabled={!changed || invalid} className={adminButtonClassName}>
+        <button type="button" onClick={save} disabled={!changed || invalid || saving} className={adminButtonClassName}>
           Enregistrer les horaires
         </button>
       </div>
@@ -242,6 +243,7 @@ const ruleFields: { key: keyof BookingRules; label: string; hint: string; min: n
 const BookingRulesForm = () => {
   const rules = useSettingsStore((s) => s.rules);
   const setRules = useSettingsStore((s) => s.setRules);
+  const { saving, run } = useSave();
   const [draft, setDraft] = useState<Record<keyof BookingRules, string>>({
     bookingWindowDays: String(rules.bookingWindowDays),
     minNoticeHours: String(rules.minNoticeHours),
@@ -289,15 +291,18 @@ const BookingRulesForm = () => {
       <div className="flex justify-end">
         <button
           type="button"
-          disabled={!changed || invalid}
-          onClick={() => {
-            setRules({
-              bookingWindowDays: Number(draft.bookingWindowDays),
-              minNoticeHours: Number(draft.minNoticeHours),
-              cancellationNoticeDays: Number(draft.cancellationNoticeDays),
-            });
-            toast.success("Règles enregistrées");
-          }}
+          disabled={!changed || invalid || saving}
+          onClick={() =>
+            run(
+              () =>
+                setRules({
+                  bookingWindowDays: Number(draft.bookingWindowDays),
+                  minNoticeHours: Number(draft.minNoticeHours),
+                  cancellationNoticeDays: Number(draft.cancellationNoticeDays),
+                }),
+              () => toast.success("Règles enregistrées"),
+            )
+          }
           className={adminButtonClassName}
         >
           Enregistrer les règles
@@ -312,6 +317,7 @@ const ClosedDates = () => {
   const closedDates = useSettingsStore((s) => s.closedDates);
   const addClosedDate = useSettingsStore((s) => s.addClosedDate);
   const removeClosedDate = useSettingsStore((s) => s.removeClosedDate);
+  const { saving, run } = useSave();
   const [date, setDate] = useState("");
   const [label, setLabel] = useState("");
   const today = toDateKey(new Date());
@@ -328,10 +334,14 @@ const ClosedDates = () => {
         onSubmit={(e) => {
           e.preventDefault();
           if (!date) return;
-          addClosedDate({ date, label: label.trim() || "Fermeture exceptionnelle" });
-          toast.success("Fermeture ajoutée", { description: formatDay(date) });
-          setDate("");
-          setLabel("");
+          void run(
+            () => addClosedDate({ date, label: label.trim() || "Fermeture exceptionnelle" }),
+            () => {
+              toast.success("Fermeture ajoutée", { description: formatDay(date) });
+              setDate("");
+              setLabel("");
+            },
+          );
         }}
         className="grid gap-3 sm:grid-cols-[auto_1fr_auto] sm:items-end"
       >
@@ -353,7 +363,7 @@ const ClosedDates = () => {
             className={adminInputClassName}
           />
         </div>
-        <button type="submit" disabled={!date} className={adminButtonClassName}>
+        <button type="submit" disabled={!date || saving} className={adminButtonClassName}>
           Ajouter
         </button>
       </form>
@@ -368,7 +378,8 @@ const ClosedDates = () => {
               </div>
               <button
                 type="button"
-                onClick={() => removeClosedDate(d.date)}
+                onClick={() => run(() => removeClosedDate(d.date), () => toast("Fermeture supprimée"))}
+                disabled={saving}
                 aria-label={`Supprimer la fermeture du ${formatDay(d.date)}`}
                 className="inline-flex size-8 items-center justify-center rounded-full text-taupe transition-colors hover:bg-sand hover:text-cocoa"
               >
@@ -396,7 +407,7 @@ const SalonLocationForm = () => {
   const salon = useSettingsStore((s) => s.salon);
   const setSalon = useSettingsStore((s) => s.setSalon);
   const location = useSettingsStore((s) => s.location);
-  const setLocation = useSettingsStore((s) => s.setLocation);
+  const { saving, run } = useSave();
   const [address, setAddress] = useState(salon.address);
   const [lat, setLat] = useState(String(location.lat));
   const [lng, setLng] = useState(String(location.lng));
@@ -527,12 +538,13 @@ const SalonLocationForm = () => {
           {changed && <p className="font-sans text-sm text-taupe">Modifications non enregistrées</p>}
           <button
             type="button"
-            disabled={!changed || invalid}
-            onClick={() => {
-              setSalon({ address: address.trim() });
-              setLocation(mapPoint);
-              toast.success("Adresse et position enregistrées");
-            }}
+            disabled={!changed || invalid || saving}
+            onClick={() =>
+              run(
+                () => setSalon({ address: address.trim() }, mapPoint),
+                () => toast.success("Adresse et position enregistrées"),
+              )
+            }
             className={adminButtonClassName}
           >
             Enregistrer
@@ -552,32 +564,51 @@ const settingsTabs = [
   { value: "livraison", label: "Livraisons et expéditions" },
 ] as const;
 
+// Le salon n'existe pas encore côté API (GET /parametres en 404) : création une seule fois, avec les valeurs par défaut
+const FirstSetup = () => {
+  const configure = useSettingsStore((s) => s.configure);
+  const { saving, run } = useSave();
+
+  return (
+    <AdminPanel className="flex flex-col items-start gap-4">
+      <AdminPanelTitle>Configurer le salon</AdminPanelTitle>
+      <p className="font-sans text-sm text-taupe">
+        Les réglages ne sont pas encore enregistrés : le site affiche des valeurs par défaut. Créez-les une
+        première fois, puis ajustez chaque onglet.
+      </p>
+      <button
+        type="button"
+        disabled={saving}
+        onClick={() => run(configure, () => toast.success("Salon configuré"))}
+        className={adminButtonClassName}
+      >
+        Créer les réglages
+      </button>
+    </AdminPanel>
+  );
+};
+
 export const SettingsEditor = () => {
   const hydrated = useSettingsHydrated();
-  const reset = useSettingsStore((s) => s.reset);
-  // Remonte les formulaires après une réinitialisation pour relire les valeurs
-  const [version, setVersion] = useState(0);
+  const configured = useSettingsStore((s) => s.configured);
 
   if (!hydrated) return <div className="min-h-96" aria-hidden />;
 
+  if (!configured) {
+    return (
+      <div className="flex flex-col gap-8">
+        <AdminPageHeader title="Réglages" description="Première configuration du salon." />
+        <FirstSetup />
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-8">
-      <AdminPageHeader title="Réglages" description="Identité de la plateforme, horaires, créneaux, règles de réservation, position du salon et tarifs de livraison.">
-        <button
-          type="button"
-          onClick={() => {
-            reset();
-            setVersion((v) => v + 1);
-            toast("Réglages par défaut rétablis");
-          }}
-          className={adminOutlineButtonClassName}
-        >
-          Rétablir les valeurs par défaut
-        </button>
-      </AdminPageHeader>
+      <AdminPageHeader title="Réglages" description="Identité de la plateforme, horaires, créneaux, règles de réservation, position du salon et tarifs de livraison." />
 
       {/* forceMount : les brouillons non enregistrés survivent au changement d'onglet */}
-      <Tabs key={version} defaultValue="plateforme" className="flex-col gap-6">
+      <Tabs defaultValue="plateforme" className="flex-col gap-6">
         <TabsList
           variant="line"
           aria-label="Catégories de réglages"

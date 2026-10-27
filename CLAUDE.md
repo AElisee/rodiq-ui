@@ -1,0 +1,71 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+@AGENTS.md
+
+## Projet
+
+Front Next.js de RODIQ (salon d'onglerie + boutique), en français. L'authentification (clients et admin) et les
+réglages passent par l'API ; les autres données sont encore une **maquette** dans des stores zustand
+persistés dans le `localStorage`. L'API
+(NestJS + TypeORM + MariaDB, dépôt séparé `../api-rodiq`) est spécifiée dans `docs/backend.md` et son
+installation dans `docs/installation-backend.md`.
+
+## Commandes
+
+Gestionnaire de paquets : **pnpm**.
+
+- `pnpm dev` : serveur de dev (http://localhost:3000)
+- `pnpm build` / `pnpm start`
+- `pnpm lint` : ESLint (config `eslint-config-next`)
+- `pnpm exec tsc --noEmit` : vérification des types
+
+Il n'y a pas de tests.
+
+Next.js 16.4 + React 19.3 : lire la doc embarquée dans `node_modules/next/dist/docs/` avant d'utiliser une
+API Next (voir AGENTS.md). `next.config.ts` active `cacheComponents` et `partialPrefetching` ; les props de
+layout/page utilisent les types globaux générés (`LayoutProps<"/">`, `PageProps<…>`).
+
+## Architecture
+
+- `app/(site)/` : site public (accueil, prestations, réservation, boutique, panier, commande, connexion,
+  inscription, historiques « mes réservations / mes commandes »). `template.tsx` fait un fondu entre pages
+  via `<ViewTransition>`.
+- `app/admin/` : back-office. `connexion/` est public ; `(espace)/` est enveloppé par `AdminShell`
+  (menu latéral + contrôle de session côté navigateur).
+- Chaque route garde ses composants propres dans un dossier `_components/` ; les composants partagés sont
+  dans `components/` (`ui/` = shadcn, `admin/` = briques communes de l'admin, `layout/`, `forms/`…).
+- `lib/*.ts` (`prestations`, `produits`, `reservations`, `commandes`) : types de référence, données
+  initiales du catalogue et règles métier (transitions de statut décrites en tête de `reservations.ts` et
+  `commandes.ts`). `lib/demo-data.ts` génère des données de démonstration déterministes pour l'admin.
+- `lib/api/` : **seule couche qui parle à l'API**. `client.ts` (URL `NEXT_PUBLIC_API_URL`, cookies
+  `credentials: "include"`, `ApiError`, `errorMessage` pour les toasts), `endpoints.ts` (tous les chemins),
+  un service par ressource (`auth.ts`, `parametres.ts`) qui traduit les DTO de l'API (noms français) vers les
+  types du front. Les composants n'appellent jamais l'API : ils passent par les stores.
+- `lib/stores/` : **un store = une ressource d'API**. `auth-store`, `admin-store` et `settings-store` sont
+  alimentés par `lib/api/` (non persistés ; hook `use…Hydrated` créé par `createLoadHook` de `remote.ts`, qui
+  lance le chargement) ; leurs actions sont asynchrones et lèvent une `ApiError` en cas d'échec. Le site et l'admin lisent et écrivent les
+  mêmes stores (`catalog`, `reservation`, `order`, `settings`, `auth`, `admin`, `visit`) ; `cart` et
+  `booking` restent côté navigateur. La table store → endpoint est dans `docs/backend.md` : la tenir à
+  jour quand on ajoute une action de store.
+- Les stores persistés sont en hydratation manuelle (`skipHydration`) : utiliser le hook
+  `use…Hydrated` créé par `createHydrationHook` avant d'afficher leurs données, et `ensureHydrated` avant
+  de modifier un store hors de son écran (`lib/stores/hydration.ts`). Les changements de forme passent
+  par `version` / `migrate` du middleware `persist`.
+- Le catalogue produits fusionne les produits de `lib/produits.ts` avec `productOverrides`,
+  `customProducts` et `removedProductIds` du `catalog-store`.
+- Validation des formulaires : react-hook-form + zod (`lib/validation.ts`, `components/forms/form-fields.tsx`).
+- Comptes : gérés par l'API (admin créé depuis `ADMIN_EMAIL` / `ADMIN_PASSWORD` de `../api-rodiq/.env`).
+  L'écran Clientèle affiche encore `demoClientAccounts` (pas de route de liste des comptes).
+
+## Conventions
+
+- Code, commentaires, libellés et routes en **français**. Composants en fonctions fléchées `const` avec
+  `export default` en bas de fichier pour les pages/layouts.
+- Couleurs : uniquement les tokens de la charte définis dans `app/globals.css` (`pearl`, `blush`, `sand`,
+  `taupe`, `cocoa`, `gold`), sans modificateur d'opacité et jamais d'hexadécimal dans un composant.
+- Boutons du site public : `bg-blush text-cocoa hover:bg-sand` (pilule `rounded-full`). Dans `/admin` :
+  boutons cocoa/pearl via les classes partagées de `components/admin/admin-ui.tsx`.
+- Libellés neutres (« Clientèle », « Client(e) », pas « cliente » seul) ; pas de mention « (facultatif) »
+  sur les champs optionnels, seuls les obligatoires sont marqués avec `<Required />`.

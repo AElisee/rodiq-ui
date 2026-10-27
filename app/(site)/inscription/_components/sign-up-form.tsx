@@ -3,6 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -15,12 +16,8 @@ import {
   Required,
   submitClassName,
 } from "@/components/forms/form-fields";
-import {
-  selectCurrentAccount,
-  selectEmailTaken,
-  useAuthHydrated,
-  useAuthStore,
-} from "@/lib/stores/auth-store";
+import { errorMessage } from "@/lib/api/client";
+import { selectCurrentAccount, useAuthHydrated, useAuthStore } from "@/lib/stores/auth-store";
 import {
   emailSchema,
   nameSchema,
@@ -74,7 +71,9 @@ export const SignUpForm = () => {
     },
   });
   const values = useWatch({ control });
-  const emailTaken = useAuthStore(selectEmailTaken(values.email));
+  // Adresse refusée par l'API (409) : l'alerte disparaît dès que l'e-mail change
+  const [takenEmail, setTakenEmail] = useState<string>();
+  const emailTaken = !!takenEmail && takenEmail === values.email?.trim().toLowerCase();
   const loginHref = `/connexion?redirect=${encodeURIComponent(redirect)}`;
 
   // La session est relue depuis le navigateur : rien à afficher côté serveur
@@ -109,15 +108,24 @@ export const SignUpForm = () => {
     confirmPassword === password;
 
   const onSubmit = async (values: SignUpValues) => {
-    const result = await signUp({
-      firstName: values.firstName,
-      lastName: values.lastName,
-      phone: withDialCode(values.phone),
-      whatsapp: values.whatsapp ? withDialCode(values.whatsapp) : undefined,
-      email: values.email,
-      password: values.password,
-    });
-    if (!result.ok) return;
+    let result: Awaited<ReturnType<typeof signUp>>;
+    try {
+      result = await signUp({
+        firstName: values.firstName,
+        lastName: values.lastName,
+        phone: withDialCode(values.phone),
+        whatsapp: values.whatsapp ? withDialCode(values.whatsapp) : undefined,
+        email: values.email,
+        password: values.password,
+      });
+    } catch (error) {
+      toast.error("Inscription impossible", { description: errorMessage(error) });
+      return;
+    }
+    if (!result.ok) {
+      setTakenEmail(values.email.trim().toLowerCase());
+      return;
+    }
 
     toast(`Bienvenue ${values.firstName}`, { description: "Votre compte RODIQ est créé." });
     router.replace(redirect);

@@ -1,43 +1,52 @@
 import { create } from "zustand";
-import { createJSONStorage, persist } from "zustand/middleware";
-import { createHydrationHook } from "./hydration";
+import { adminAuthApi } from "@/lib/api/auth";
+import { isApiError } from "@/lib/api/client";
+import { createLoadHook } from "./remote";
 
 type AdminState = {
   email: string | null;
+  // Vrai une fois la session admin vérifiée auprès de l'API (GET /admin/me)
+  checked: boolean;
+  restore: () => Promise<void>;
+  // Erreurs autres qu'« identifiants incorrects » : ApiError levée
   signIn: (email: string, password: string) => Promise<boolean>;
-  signOut: () => void;
+  signOut: () => Promise<void>;
+  // Session expirée côté serveur (401 sur une route admin) : l'espace admin renvoie vers la connexion
+  expire: () => void;
 };
 
-// Maquette uniquement : l'authentification de l'admin se fera côté serveur
-const hashPassword = async (password: string) => {
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(password));
-  return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
-};
+// Session de l'admin, séparée de celle des clients (cookie rodiq_admin_session, 8 h sans activité)
+export const useAdminStore = create<AdminState>()((set) => ({
+  email: null,
+  checked: false,
+  restore: async () => {
+    try {
+      const { email } = await adminAuthApi.me();
+      set({ email, checked: true });
+    } catch {
+      set({ email: null, checked: true });
+    }
+  },
+  signIn: async (email, password) => {
+    try {
+      const admin = await adminAuthApi.signIn(email, password);
+      set({ email: admin.email, checked: true });
+      return true;
+    } catch (error) {
+      if (isApiError(error, 401)) return false;
+      throw error;
+    }
+  },
+  signOut: async () => {
+    try {
+      await adminAuthApi.signOut();
+    } catch {
+      // Session déjà fermée ou serveur injoignable : on déconnecte quand même l'interface
+    }
+    set({ email: null });
+  },
+  expire: () => set({ email: null }),
+}));
 
-// Compte admin de démonstration : admin@rodiq.ci / admin2026 (pas d'inscription possible)
-const ADMIN_EMAIL = "admin@rodiq.ci";
-const ADMIN_PASSWORD_HASH = "6051fc84a7a0d74c225fb18a496b09952da5642e60723ecae543298edd7d82d6";
-
-// Session de l'admin, séparée de celle des clientes
-export const useAdminStore = create<AdminState>()(
-  persist(
-    (set) => ({
-      email: null,
-      signIn: async (email, password) => {
-        const ok =
-          email.trim().toLowerCase() === ADMIN_EMAIL &&
-          (await hashPassword(password)) === ADMIN_PASSWORD_HASH;
-        if (ok) set({ email: ADMIN_EMAIL });
-        return ok;
-      },
-      signOut: () => set({ email: null }),
-    }),
-    {
-      name: "rodiq-admin",
-      storage: createJSONStorage(() => localStorage),
-      skipHydration: true,
-    },
-  ),
-);
-
-export const useAdminHydrated = createHydrationHook(useAdminStore);
+// Vrai une fois la session admin vérifiée auprès de l'API
+export const useAdminHydrated = createLoadHook(useAdminStore, (s) => s.checked, () => useAdminStore.getState().restore());

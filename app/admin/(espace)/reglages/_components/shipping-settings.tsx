@@ -13,6 +13,7 @@ import {
 import { FieldError } from "@/components/forms/form-fields";
 import type { ShippingRate } from "@/lib/commandes";
 import { useSettingsStore, type ShippingSettings } from "@/lib/stores/settings-store";
+import { useSave } from "./use-save";
 
 type RateDraft = { place: string; fee: string };
 
@@ -137,6 +138,7 @@ const RatesList = ({
 export const ShippingSettingsForm = () => {
   const shipping = useSettingsStore((s) => s.shipping);
   const setShipping = useSettingsStore((s) => s.setShipping);
+  const { saving, run } = useSave();
   const [draft, setDraft] = useState<Record<keyof ShippingSettings, RateDraft[]>>({
     delivery: toDraft(shipping.delivery),
     expedition: toDraft(shipping.expedition),
@@ -177,11 +179,13 @@ export const ShippingSettingsForm = () => {
         )}
         <button
           type="button"
-          disabled={!changed || invalid || crossDuplicate}
-          onClick={() => {
-            setShipping(next);
-            toast.success("Tarifs enregistrés", { description: "Le tunnel de commande est mis à jour." });
-          }}
+          disabled={!changed || invalid || crossDuplicate || saving}
+          onClick={() =>
+            run(
+              () => setShipping(next),
+              () => toast.success("Tarifs enregistrés", { description: "Le tunnel de commande est mis à jour." }),
+            )
+          }
           className={adminButtonClassName}
         >
           Enregistrer les tarifs

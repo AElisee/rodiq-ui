@@ -27,7 +27,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { orderItemCount, orderTotal, type Order } from "@/lib/commandes";
 import { formatPrice } from "@/lib/prestations";
 import { formatDay, formatSlotTime, reservationTotal, type Reservation } from "@/lib/reservations";
-import { useAuthHydrated, useAuthStore, type Account } from "@/lib/stores/auth-store";
+import { demoClientAccounts } from "@/lib/demo-data";
+import type { Account } from "@/lib/stores/auth-store";
 import { useOrderStore, useOrdersHydrated } from "@/lib/stores/order-store";
 import { useReservationStore, useReservationsHydrated } from "@/lib/stores/reservation-store";
 
@@ -120,10 +121,10 @@ const AccountHistory = ({
 
 // Comptes clients avec leur activité (réservations, commandes, dépenses)
 export const UsersList = () => {
-  const authHydrated = useAuthHydrated();
   const reservationsHydrated = useReservationsHydrated();
   const ordersHydrated = useOrdersHydrated();
-  const accounts = useAuthStore((s) => s.accounts);
+  // Comptes de démonstration en attendant une route API qui liste les comptes (GET /admin/comptes)
+  const accounts = demoClientAccounts;
   const reservations = useReservationStore((s) => s.reservations);
   const orders = useOrderStore((s) => s.orders);
   const [query, setQuery] = useState("");
@@ -131,7 +132,7 @@ export const UsersList = () => {
   const [page, setPage] = useState(1);
   const search = normalizeSearch(useDeferredValue(query));
 
-  if (!authHydrated || !reservationsHydrated || !ordersHydrated) return <div className="min-h-96" aria-hidden />;
+  if (!reservationsHydrated || !ordersHydrated) return <div className="min-h-96" aria-hidden />;
 
   const rows = accounts
     .map((account) => {
