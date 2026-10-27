@@ -2,6 +2,7 @@
 
 import { ImagePlus, Plus, Trash2, X } from "lucide-react";
 import Image from "next/image";
+import Link from "next/link";
 import { useMemo, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import {
@@ -20,19 +21,20 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import { errorMessage } from "@/lib/api/client";
+import type { ProductFields } from "@/lib/api/boutique";
 import { orderLineKey } from "@/lib/commandes";
 import { resizeImage } from "@/lib/images";
 import {
   CAPACITY_UNITS,
   DEFAULT_LOW_STOCK_THRESHOLD,
+  MAX_PHOTOS,
   WEIGHT_UNITS,
+  type AdminProduct,
   type Measure,
-  type ProductImage,
 } from "@/lib/produits";
-import { useCatalogStore, useProductCategories, type CatalogProduct } from "@/lib/stores/catalog-store";
+import { useAdminBoutiqueStore, useAdminCategories } from "@/lib/stores/admin-boutique-store";
 import { useOrderStore } from "@/lib/stores/order-store";
-
-const MAX_PHOTOS = 4;
 
 // Quantités vendues (commandes non annulées) par produit:déclinaison, voir orderLineKey
 export type SoldCounts = Map<string, number>;
@@ -52,27 +54,24 @@ export const useSoldCounts = () => {
   }, [orders]);
 };
 
-type VariantRow = { id: string; name: string; stock: string };
+// key : clé d'affichage ; id : identifiant d'un variant déjà enregistré (absent pour un nouveau)
+type VariantRow = { key: string; id?: string; name: string; stock: string };
 
 const sectionTitleClassName = "mt-2 border-t border-sand pt-5 font-serif text-lg";
 
-const slugify = (text: string) =>
-  text
-    .normalize("NFD")
-    .replace(/\p{Diacritic}/gu, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "");
+const rowKey = () => crypto.randomUUID();
 
-const shortId = () => crypto.randomUUID().slice(0, 6);
+// Raison d'un échec de préparation d'une photo (lecture ou compression dans le navigateur)
+export const photoErrorMessage = (error: unknown) =>
+  error instanceof Error ? `Photo non préparée : ${error.message}` : errorMessage(error);
 
 const isCount = (value: string) => value !== "" && Number.isInteger(Number(value)) && Number(value) >= 0;
 
 // Mesure facultative : vide, ou nombre positif (virgule acceptée)
 const parseMeasure = (value: string) => Number(value.replace(",", "."));
 const isMeasure = (value: string) => value === "" || (Number.isFinite(parseMeasure(value)) && parseMeasure(value) > 0);
-const toMeasure = <Unit extends string>(value: string, unit: Unit): Measure<Unit> | undefined =>
-  value ? { value: parseMeasure(value), unit } : undefined;
+const toMeasure = <Unit extends string>(value: string, unit: Unit): Measure<Unit> | null =>
+  value ? { value: parseMeasure(value), unit } : null;
 
 const NumberInput = ({
   id,
@@ -111,17 +110,20 @@ const NumberInput = ({
 
 type ProductFormProps = {
   // Absent : création d'un produit
-  product?: CatalogProduct;
+  product?: AdminProduct;
   sold: SoldCounts;
   onDone?: () => void;
   // Absent : pas de bouton « Annuler »
   onCancel?: () => void;
 };
 
-// Champs du formulaire : à remonter (key) pour repartir du produit à jour
+// Champs du formulaire : à remonter (key) pour repartir du produit à jour. À la création, les photos
+// partent avec le produit ; ensuite elles se gèrent depuis la fiche (une requête par photo)
 export const ProductFormFields = ({ product, sold, onDone, onCancel }: ProductFormProps) => {
-  const saveProduct = useCatalogStore((s) => s.saveProduct);
-  const categories = useProductCategories();
+  const createProduct = useAdminBoutiqueStore((s) => s.createProduct);
+  const updateProduct = useAdminBoutiqueStore((s) => s.updateProduct);
+  const categories = useAdminCategories();
+  const categoriesError = useAdminBoutiqueStore((s) => s.categoriesError);
   const creating = !product;
 
   const [name, setName] = useState(product?.name ?? "");
@@ -134,20 +136,22 @@ export const ProductFormFields = ({ product, sold, onDone, onCancel }: ProductFo
   const [capacityUnit, setCapacityUnit] = useState(product?.capacity?.unit ?? CAPACITY_UNITS[0]);
   const [weight, setWeight] = useState(product?.weight ? String(product.weight.value) : "");
   const [weightUnit, setWeightUnit] = useState(product?.weight?.unit ?? WEIGHT_UNITS[0]);
-  const [images, setImages] = useState<ProductImage[]>(product?.images ?? []);
-  const [hasVariants, setHasVariants] = useState(!!product?.variants?.length);
+  // Photos à envoyer avec un nouveau produit (data URL réduites)
+  const [images, setImages] = useState<string[]>([]);
+  const [hasVariants, setHasVariants] = useState(!!product?.variants.length);
   const [variants, setVariants] = useState<VariantRow[]>(
-    product?.variants?.length
-      ? product.variants.map((v) => ({ id: v.id, name: v.name, stock: String(v.stock) }))
+    product?.variants.length
+      ? product.variants.map((v) => ({ key: v.id, id: v.id, name: v.name, stock: String(v.stock) }))
       : [
-          { id: shortId(), name: "", stock: "" },
-          { id: shortId(), name: "", stock: "" },
+          { key: rowKey(), name: "", stock: "" },
+          { key: rowKey(), name: "", stock: "" },
         ],
   );
   const [stock, setStock] = useState(product ? String(product.stock ?? 0) : "");
   const [threshold, setThreshold] = useState(String(product?.lowStockThreshold ?? DEFAULT_LOW_STOCK_THRESHOLD));
   const [hidden, setHidden] = useState(!!product?.hidden);
   const [submitted, setSubmitted] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const priceValue = Number(price);
   const promoValue = Number(promoPrice);
@@ -177,52 +181,78 @@ export const ProductFormFields = ({ product, sold, onDone, onCancel }: ProductFo
 
   const soldFor = (variantId?: string) => (product ? (sold.get(`${product.id}:${variantId ?? ""}`) ?? 0) : 0);
 
-  const updateVariant = (id: string, changes: Partial<VariantRow>) =>
-    setVariants((rows) => rows.map((row) => (row.id === id ? { ...row, ...changes } : row)));
+  const updateVariant = (key: string, changes: Partial<VariantRow>) =>
+    setVariants((rows) => rows.map((row) => (row.key === key ? { ...row, ...changes } : row)));
 
   const addPhotos = async (files: FileList | null) => {
     const selected = Array.from(files ?? []).filter((file) => file.type.startsWith("image/"));
     const room = MAX_PHOTOS - images.length;
-    if (selected.length > room) toast(`${MAX_PHOTOS} photos au maximum par produit`);
-    try {
-      const added = await Promise.all(selected.slice(0, room).map((file) => resizeImage(file)));
-      setImages((current) => [...current, ...added]);
-    } catch {
-      toast.error("Une photo n'a pas pu être importée");
+    if (selected.length > room) {
+      toast(`${MAX_PHOTOS} photos au maximum par produit : ${selected.length - room} non ajoutée(s)`);
     }
+    const kept = selected.slice(0, room);
+    const results = await Promise.allSettled(kept.map((file) => resizeImage(file)));
+    setImages((current) => [...current, ...results.flatMap((r) => (r.status === "fulfilled" ? [r.value] : []))]);
+    results.forEach((result, i) => {
+      if (result.status === "rejected") {
+        toast.error(`« ${kept[i].name} » n'a pas été ajoutée`, { description: photoErrorMessage(result.reason) });
+      }
+    });
   };
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitted(true);
-    if (hasErrors) return;
+    if (hasErrors || saving) return;
 
-    const id = product?.id ?? `${slugify(name) || "produit"}-${shortId()}`;
-    saveProduct({
-      ...product,
-      id,
+    const fields: ProductFields = {
       name: name.trim(),
       categoryId,
       price: promoPrice ? promoValue : priceValue,
-      compareAtPrice: promoPrice ? priceValue : undefined,
-      description: description.trim() || undefined,
+      compareAtPrice: promoPrice ? priceValue : null,
+      description: description.trim(),
       capacity: toMeasure(capacity, capacityUnit),
       weight: toMeasure(weight, weightUnit),
-      images: images.length ? images : undefined,
       variants: hasVariants
         ? variants.map((v) => ({ id: v.id, name: v.name.trim(), stock: Number(v.stock) }))
-        : undefined,
+        : [],
       stock: hasVariants ? 0 : Number(stock),
       lowStockThreshold: Number(threshold),
       hidden,
-    });
-    setSubmitted(false);
-    onDone?.();
-    toast.success(creating ? "Produit ajouté" : "Produit enregistré", { description: name.trim() });
+    };
+
+    setSaving(true);
+    try {
+      if (product) {
+        await updateProduct(product.id, fields, product.version);
+        toast.success("Produit enregistré", { description: fields.name });
+      } else {
+        const { rejectedPhotos } = await createProduct(fields, images);
+        const count = rejectedPhotos.length;
+        // Produit créé même si des photos ont été écartées : chacune est expliquée
+        if (count > 0) {
+          const s = count > 1 ? "s" : "";
+          toast.warning(`Produit ajouté, ${count} photo${s} écartée${s}`, {
+            description: `${fields.name} · ${rejectedPhotos.join(" · ")}`,
+            duration: 12_000,
+          });
+        } else {
+          toast.success("Produit ajouté", { description: fields.name });
+        }
+      }
+      setSubmitted(false);
+      onDone?.();
+    } catch (error) {
+      toast.error(product ? `« ${product.name} » n'a pas été enregistré` : "Le produit n'a pas été ajouté", {
+        description: errorMessage(error),
+      });
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
-    <form onSubmit={submit} noValidate className="flex flex-col gap-4">
+    <form onSubmit={(e) => void submit(e)} noValidate className="flex flex-col gap-4">
       <div>
         <label htmlFor="product-name" className={adminLabelClassName}>
           Nom *
@@ -244,7 +274,9 @@ export const ProductFormFields = ({ product, sold, onDone, onCancel }: ProductFo
           onValueChange={setCategoryId}
           options={categories.map((c) => ({ value: c.id, label: c.name }))}
         />
-        {categories.length === 0 ? (
+        {categoriesError ? (
+          <FieldError message={`Catégories non chargées : ${categoriesError}`} />
+        ) : categories.length === 0 ? (
           <FieldError message="Créez d'abord une catégorie (Boutique › Catégories)" />
         ) : (
           submitted && <FieldError message={errors.category} />
@@ -343,18 +375,23 @@ export const ProductFormFields = ({ product, sold, onDone, onCancel }: ProductFo
       </div>
 
       <h3 className={sectionTitleClassName}>Photos</h3>
-      <div>
+      {product ? (
+        <p className="text-sm text-taupe">
+          Les photos s&apos;ajoutent, se retirent et se réordonnent depuis la{" "}
+          <Link
+            href={`/admin/boutique/produits/${encodeURIComponent(product.id)}`}
+            className="text-cocoa underline underline-offset-4"
+          >
+            fiche du produit
+          </Link>
+          .
+        </p>
+      ) : (
+        <div>
           <ul className="grid grid-cols-4 gap-3">
             {images.map((image, i) => (
               <li key={i} className="relative aspect-[4/5] overflow-hidden rounded-md bg-sand">
-                <Image
-                  src={image}
-                  alt={`Photo ${i + 1}`}
-                  fill
-                  unoptimized={typeof image === "string"}
-                  sizes="120px"
-                  className="object-cover"
-                />
+                <Image src={image} alt={`Photo ${i + 1}`} fill unoptimized sizes="120px" className="object-cover" />
                 <button
                   type="button"
                   onClick={() => setImages((current) => current.filter((_, index) => index !== i))}
@@ -385,9 +422,10 @@ export const ProductFormFields = ({ product, sold, onDone, onCancel }: ProductFo
             )}
           </ul>
           <p className="mt-2 text-xs text-taupe">
-            {MAX_PHOTOS} photos au maximum ; la première sert de visuel principal.
+            {MAX_PHOTOS} photos au maximum (JPEG, PNG ou WebP) ; la première sert de visuel principal.
           </p>
         </div>
+      )}
 
       <h3 className={sectionTitleClassName}>Stock</h3>
       <label className="flex cursor-pointer items-center gap-3 text-sm">
@@ -408,11 +446,11 @@ export const ProductFormFields = ({ product, sold, onDone, onCancel }: ProductFo
             <span className="text-taupe">Quantité</span>
             <span />
             {variants.map((v, i) => (
-              <div key={v.id} className="contents">
+              <div key={v.key} className="contents">
                 <span className="text-taupe">Variant {i + 1}</span>
                 <input
                   value={v.name}
-                  onChange={(e) => updateVariant(v.id, { name: e.target.value })}
+                  onChange={(e) => updateVariant(v.key, { name: e.target.value })}
                   placeholder={i === 0 ? "Ex. Nude rosé" : undefined}
                   aria-label={`Nom du variant ${i + 1}`}
                   aria-invalid={submitted && !v.name.trim()}
@@ -420,19 +458,19 @@ export const ProductFormFields = ({ product, sold, onDone, onCancel }: ProductFo
                 />
                 <NumberInput
                   value={v.stock}
-                  onChange={(value) => updateVariant(v.id, { stock: value })}
+                  onChange={(value) => updateVariant(v.key, { stock: value })}
                   label={`Quantité en stock du variant ${i + 1}`}
                   invalid={submitted && !isCount(v.stock)}
                 />
                 <button
                   type="button"
-                  onClick={() => setVariants((rows) => rows.filter((row) => row.id !== v.id))}
+                  onClick={() => setVariants((rows) => rows.filter((row) => row.key !== v.key))}
                   aria-label={`Supprimer le variant ${i + 1}`}
                   className="inline-flex size-8 items-center justify-center rounded-full text-taupe transition-colors hover:bg-sand hover:text-cocoa"
                 >
                   <Trash2 className="size-4" strokeWidth={1.75} />
                 </button>
-                {product && soldFor(v.id) > 0 && (
+                {v.id && soldFor(v.id) > 0 && (
                   <p className="col-span-3 col-start-2 -mt-1 text-xs text-taupe">{soldFor(v.id)} vendu(s)</p>
                 )}
               </div>
@@ -440,7 +478,7 @@ export const ProductFormFields = ({ product, sold, onDone, onCancel }: ProductFo
           </div>
           <button
             type="button"
-            onClick={() => setVariants((rows) => [...rows, { id: shortId(), name: "", stock: "" }])}
+            onClick={() => setVariants((rows) => [...rows, { key: rowKey(), name: "", stock: "" }])}
             className={`self-start ${adminSmallOutlineButtonClassName}`}
           >
             <Plus className="size-3.5" strokeWidth={1.75} />
@@ -491,8 +529,8 @@ export const ProductFormFields = ({ product, sold, onDone, onCancel }: ProductFo
             Annuler
           </button>
         )}
-        <button type="submit" className={`w-full sm:w-auto ${adminButtonClassName}`}>
-          {creating ? "Ajouter le produit" : "Enregistrer"}
+        <button type="submit" disabled={saving} className={`w-full sm:w-auto ${adminButtonClassName}`}>
+          {saving ? "Enregistrement…" : creating ? "Ajouter le produit" : "Enregistrer"}
         </button>
       </div>
     </form>

@@ -17,7 +17,7 @@ import { formatPrice } from "@/lib/prestations";
 import { selectCartQuantity, useCartStore } from "@/lib/stores/cart-store";
 
 type ProductCardProps = {
-  // Produit avec les modifications de l'admin (useShopProducts)
+  // Produit lu depuis l'API (stock = quantité qu'on peut mettre au panier)
   product: Product;
   // h3 quand la grille est placée sous un titre de section (fiche produit)
   headingAs?: "h2" | "h3";

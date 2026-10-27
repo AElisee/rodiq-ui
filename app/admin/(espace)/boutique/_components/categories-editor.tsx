@@ -6,9 +6,11 @@ import { useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import {
   AdminPageHeader,
+  AdminPanel,
   adminButtonClassName,
   adminInputClassName,
   adminLabelClassName,
+  adminSmallOutlineButtonClassName,
   adminTextareaClassName,
 } from "@/components/admin/admin-ui";
 import { FieldError } from "@/components/forms/form-fields";
@@ -21,8 +23,9 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import type { ProductCategory } from "@/lib/produits";
-import { useCatalogHydrated, useCatalogProducts, useCatalogStore } from "@/lib/stores/catalog-store";
+import { errorMessage } from "@/lib/api/client";
+import type { AdminProductCategory } from "@/lib/produits";
+import { useAdminBoutiqueStore, useAdminCategoriesLoaded } from "@/lib/stores/admin-boutique-store";
 import { iconButtonClassName } from "./product-actions";
 
 const slugify = (text: string) =>
@@ -37,15 +40,16 @@ const dialogClassName = "gap-0 rounded-[var(--radius)] bg-pearl p-6 font-sans te
 
 type CategoryFormProps = {
   // Absente : création d'une catégorie
-  category?: ProductCategory;
-  categories: ProductCategory[];
+  category?: AdminProductCategory;
+  categories: AdminProductCategory[];
   trigger: ReactNode;
 };
 
 // Ajout ou modification d'une catégorie (nom et texte par défaut des fiches produit)
 const CategoryForm = ({ category, categories, trigger }: CategoryFormProps) => {
-  const saveProductCategory = useCatalogStore((s) => s.saveProductCategory);
+  const saveCategory = useAdminBoutiqueStore((s) => s.saveCategory);
   const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [name, setName] = useState(category?.name ?? "");
   const [description, setDescription] = useState(category?.description ?? "");
   const [submitted, setSubmitted] = useState(false);
@@ -67,25 +71,25 @@ const CategoryForm = ({ category, categories, trigger }: CategoryFormProps) => {
     setSubmitted(false);
   };
 
-  // Identifiant tiré du nom, rendu unique ; conservé à la modification (lié aux produits)
-  const newId = () => {
-    const base = slugify(trimmedName) || "categorie";
-    const ids = new Set(categories.map((c) => c.id));
-    if (!ids.has(base)) return base;
-    let n = 2;
-    while (ids.has(`${base}-${n}`)) n++;
-    return `${base}-${n}`;
-  };
-
-  const submit = (e: React.FormEvent) => {
+  // Identifiant tiré du nom par l'API à la création, conservé ensuite (lié aux produits)
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitted(true);
-    if (nameError) return;
+    if (nameError || saving) return;
 
-    saveProductCategory({ id: category?.id ?? newId(), name: trimmedName, description: description.trim() });
-    setOpen(false);
-    toast.success(category ? "Catégorie modifiée" : "Catégorie ajoutée", { description: trimmedName });
-    if (!category) reset();
+    setSaving(true);
+    try {
+      await saveCategory({ name: trimmedName, description: description.trim() }, category?.id);
+      setOpen(false);
+      toast.success(category ? "Catégorie modifiée" : "Catégorie ajoutée", { description: trimmedName });
+      if (!category) reset();
+    } catch (error) {
+      toast.error(category ? `« ${category.name} » n'a pas été modifiée` : `« ${trimmedName} » n'a pas été ajoutée`, {
+        description: errorMessage(error),
+      });
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -105,7 +109,7 @@ const CategoryForm = ({ category, categories, trigger }: CategoryFormProps) => {
           Les changements sont visibles immédiatement dans la boutique.
         </DialogDescription>
 
-        <form onSubmit={submit} noValidate className="mt-6 flex flex-col gap-4">
+        <form onSubmit={(e) => void submit(e)} noValidate className="mt-6 flex flex-col gap-4">
           <div>
             <label htmlFor="category-name" className={adminLabelClassName}>
               Nom *
@@ -139,8 +143,8 @@ const CategoryForm = ({ category, categories, trigger }: CategoryFormProps) => {
                 Annuler
               </button>
             </DialogClose>
-            <button type="submit" className={`w-full sm:w-auto ${adminButtonClassName}`}>
-              Enregistrer
+            <button type="submit" disabled={saving} className={`w-full sm:w-auto ${adminButtonClassName}`}>
+              {saving ? "Enregistrement…" : "Enregistrer"}
             </button>
           </div>
         </form>
@@ -150,12 +154,28 @@ const CategoryForm = ({ category, categories, trigger }: CategoryFormProps) => {
 };
 
 // Suppression d'une catégorie vide ; sinon, explique qu'il faut d'abord déplacer ses produits
-const DeleteCategory = ({ category, productCount }: { category: ProductCategory; productCount: number }) => {
-  const removeProductCategory = useCatalogStore((s) => s.removeProductCategory);
+const DeleteCategory = ({ category }: { category: AdminProductCategory }) => {
+  const removeCategory = useAdminBoutiqueStore((s) => s.removeCategory);
+  const [open, setOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const productCount = category.productCount;
   const blocked = productCount > 0;
 
+  const confirm = async () => {
+    setDeleting(true);
+    try {
+      await removeCategory(category.id);
+      setOpen(false);
+      toast("Catégorie supprimée", { description: category.name });
+    } catch (error) {
+      toast.error(`« ${category.name} » n'a pas été supprimée`, { description: errorMessage(error) });
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   return (
-    <Dialog>
+    <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <button type="button" aria-label={`Supprimer ${category.name}`} title="Supprimer" className={iconButtonClassName}>
           <Trash2 className="size-4" strokeWidth={1.75} />
@@ -184,18 +204,14 @@ const DeleteCategory = ({ category, productCount }: { category: ProductCategory;
               Voir les produits
             </Link>
           ) : (
-            <DialogClose asChild>
-              <button
-                type="button"
-                onClick={() => {
-                  removeProductCategory(category.id);
-                  toast("Catégorie supprimée", { description: category.name });
-                }}
-                className={`w-full sm:w-auto ${adminButtonClassName}`}
-              >
-                Supprimer
-              </button>
-            </DialogClose>
+            <button
+              type="button"
+              onClick={() => void confirm()}
+              disabled={deleting}
+              className={`w-full sm:w-auto ${adminButtonClassName}`}
+            >
+              {deleting ? "Suppression…" : "Supprimer"}
+            </button>
           )}
         </div>
       </DialogContent>
@@ -203,18 +219,55 @@ const DeleteCategory = ({ category, productCount }: { category: ProductCategory;
   );
 };
 
+// Bandeau affiché quand les catégories n'ont pas pu être lues : la liste est absente ou périmée
+const CategoriesLoadError = () => {
+  const loadError = useAdminBoutiqueStore((s) => s.categoriesError);
+  const load = useAdminBoutiqueStore((s) => s.loadCategories);
+  const [retrying, setRetrying] = useState(false);
+
+  if (!loadError) return null;
+
+  const retry = async () => {
+    setRetrying(true);
+    await load();
+    setRetrying(false);
+  };
+
+  return (
+    <AdminPanel role="alert" className="flex flex-wrap items-center justify-between gap-4">
+      <div className="font-sans text-sm text-cocoa">
+        <p className="font-medium">
+          Les catégories n&apos;ont pas pu être lues : la liste ci-dessous peut être incomplète ou dépassée.
+        </p>
+        <p className="mt-1 text-taupe">{loadError}</p>
+      </div>
+      <button type="button" onClick={() => void retry()} disabled={retrying} className={adminSmallOutlineButtonClassName}>
+        {retrying ? "Lecture…" : "Relire les catégories"}
+      </button>
+    </AdminPanel>
+  );
+};
+
 // Catégories de la boutique : ajout, nom, description, ordre d'affichage et suppression
 export const CategoriesEditor = () => {
-  const hydrated = useCatalogHydrated();
-  const categories = useCatalogStore((s) => s.productCategories);
-  const moveProductCategory = useCatalogStore((s) => s.moveProductCategory);
-  const products = useCatalogProducts();
+  const loaded = useAdminCategoriesLoaded();
+  const categories = useAdminBoutiqueStore((s) => s.categories);
+  const shownIds = useAdminBoutiqueStore((s) => s.shownCategoryIds);
+  const moveCategory = useAdminBoutiqueStore((s) => s.moveCategory);
+  const loadError = useAdminBoutiqueStore((s) => s.categoriesError);
+  const [moving, setMoving] = useState(false);
 
-  if (!hydrated) return <div className="min-h-96" aria-hidden />;
+  if (!loaded) return <div className="min-h-96" aria-hidden />;
 
-  const countsFor = (id: string) => {
-    const inCategory = products.filter((p) => p.categoryId === id);
-    return { total: inCategory.length, visible: inCategory.filter((p) => !p.hidden).length };
+  const move = async (category: AdminProductCategory, offset: -1 | 1) => {
+    setMoving(true);
+    try {
+      await moveCategory(category.id, offset);
+    } catch (error) {
+      toast.error(`« ${category.name} » n'a pas été déplacée`, { description: errorMessage(error) });
+    } finally {
+      setMoving(false);
+    }
   };
 
   return (
@@ -234,6 +287,8 @@ export const CategoriesEditor = () => {
         />
       </AdminPageHeader>
 
+      <CategoriesLoadError />
+
       {categories.length > 0 ? (
         <div className="rounded-[var(--radius)] border border-sand">
           <Table className="font-sans text-cocoa">
@@ -247,15 +302,15 @@ export const CategoriesEditor = () => {
             </TableHeader>
             <TableBody>
               {categories.map((category, index) => {
-                const { total, visible } = countsFor(category.id);
+                const total = category.productCount;
                 return (
                   <TableRow key={category.id} className="border-sand hover:bg-transparent">
                     <TableCell className="px-4 py-3 align-top">
                       <div className="flex items-center">
                         <button
                           type="button"
-                          onClick={() => moveProductCategory(category.id, -1)}
-                          disabled={index === 0}
+                          onClick={() => void move(category, -1)}
+                          disabled={index === 0 || moving}
                           aria-label={`Monter ${category.name}`}
                           title="Monter"
                           className={`${iconButtonClassName} disabled:pointer-events-none disabled:opacity-30`}
@@ -264,8 +319,8 @@ export const CategoriesEditor = () => {
                         </button>
                         <button
                           type="button"
-                          onClick={() => moveProductCategory(category.id, 1)}
-                          disabled={index === categories.length - 1}
+                          onClick={() => void move(category, 1)}
+                          disabled={index === categories.length - 1 || moving}
                           aria-label={`Descendre ${category.name}`}
                           title="Descendre"
                           className={`${iconButtonClassName} disabled:pointer-events-none disabled:opacity-30`}
@@ -289,9 +344,11 @@ export const CategoriesEditor = () => {
                       >
                         {total} produit{total > 1 && "s"}
                       </Link>
-                      <p className="text-xs text-taupe">
-                        {visible === 0 ? "masquée en boutique" : `${visible} visible${visible > 1 ? "s" : ""}`}
-                      </p>
+                      {shownIds && (
+                        <p className="text-xs text-taupe">
+                          {shownIds.includes(category.id) ? "affichée en boutique" : "masquée en boutique"}
+                        </p>
+                      )}
                     </TableCell>
                     <TableCell className="px-4 py-3 align-top">
                       <div className="flex items-center justify-end gap-1">
@@ -310,7 +367,7 @@ export const CategoriesEditor = () => {
                             </button>
                           }
                         />
-                        <DeleteCategory category={category} productCount={total} />
+                        <DeleteCategory category={category} />
                       </div>
                     </TableCell>
                   </TableRow>
@@ -320,9 +377,11 @@ export const CategoriesEditor = () => {
           </Table>
         </div>
       ) : (
-        <p className="text-center font-serif text-lg text-cocoa">
-          Aucune catégorie : ajoutez-en une pour pouvoir créer des produits.
-        </p>
+        !loadError && (
+          <p className="text-center font-serif text-lg text-cocoa">
+            Aucune catégorie : ajoutez-en une pour pouvoir créer des produits.
+          </p>
+        )
       )}
     </div>
   );

@@ -17,7 +17,7 @@ import {
 import { formatPrice } from "@/lib/prestations";
 import { productStock } from "@/lib/produits";
 import { useCartStore } from "@/lib/stores/cart-store";
-import { useShopProducts } from "@/lib/stores/catalog-store";
+import { useShopProductsById } from "@/lib/stores/shop-store";
 import { useSettingsStore } from "@/lib/stores/settings-store";
 import { cn } from "@/lib/utils";
 
@@ -31,7 +31,6 @@ const Row = ({ label, children }: { label: string; children: ReactNode }) => (
 export const OrderCard = ({ order }: { order: Order }) => {
   const router = useRouter();
   const addToCart = useCartStore((s) => s.add);
-  const shopProducts = useShopProducts();
   const salonAddress = useSettingsStore((s) => s.salon.address);
 
   const { delivery } = order;
@@ -39,6 +38,9 @@ export const OrderCard = ({ order }: { order: Order }) => {
   const status = orderStatusMeta[order.status];
   // « Nouvelle » est le libellé de l'admin : côté site, la commande est « Reçue »
   const label = order.status === "en_attente" ? "Reçue" : orderStatusLabel(order);
+
+  // Produits de la commande, relus pour savoir lesquels sont encore en vente
+  const { products: shopProducts } = useShopProductsById(order.lines.map((line) => line.productId));
 
   // Produits (et déclinaisons) de la commande encore en stock en boutique
   const available = order.lines.flatMap((line) => {

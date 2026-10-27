@@ -3,6 +3,7 @@
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { Gem, Printer } from "lucide-react";
+import { useEffect } from "react";
 import { toast } from "sonner";
 import { AdminBackLink, DetailNotFound, DetailPanel, DetailRow } from "@/components/admin/admin-detail";
 import { escapeHtml, printDocument } from "@/components/admin/admin-export";
@@ -24,8 +25,8 @@ import {
   type Order,
 } from "@/lib/commandes";
 import { formatPrice } from "@/lib/prestations";
-import { imageSrc, type Product } from "@/lib/produits";
-import { useCatalogProducts } from "@/lib/stores/catalog-store";
+import type { Product } from "@/lib/produits";
+import { useAdminBoutiqueStore } from "@/lib/stores/admin-boutique-store";
 import { useOrderStore, useOrdersHydrated } from "@/lib/stores/order-store";
 import { OrderActions } from "./order-actions";
 
@@ -38,13 +39,13 @@ const paymentState = (order: Order) =>
 const gemIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.5 3 8 9l4 13 4-13-2.5-6"/><path d="M17 3a2 2 0 0 1 1.6.8l3 4a2 2 0 0 1 .013 2.382l-7.99 10.986a2 2 0 0 1-3.247 0l-7.99-10.986A2 2 0 0 1 2.4 7.8l2.998-3.997A2 2 0 0 1 7 3z"/><path d="M2 9h20"/></svg>`;
 
 // Fiche imprimable (bon de préparation / de livraison) avec les photos des produits
-const printOrder = (order: Order, products: Product[]) => {
+const printOrder = (order: Order, products: Pick<Product, "id" | "images">[]) => {
   const { customer, delivery } = order;
   const lines = order.lines
     .map((line) => {
       const image = products.find((p) => p.id === line.productId)?.images?.[0];
       const visual = image
-        ? `<img src="${escapeHtml(new URL(imageSrc(image), location.origin).href)}" alt="">`
+        ? `<img src="${escapeHtml(image)}" alt="">`
         : `<span class="visual">${gemIcon}</span>`;
       return `<tr><td class="thumb">${visual}</td><td>${escapeHtml(orderLineName(line))}</td>
 <td class="num">${escapeHtml(formatPrice(line.unitPrice))}</td><td class="num">${line.quantity}</td>
@@ -99,7 +100,15 @@ export const OrderDetails = ({ id }: { id: string }) => {
   const hydrated = useOrdersHydrated();
   const order = useOrderStore((s) => s.orders.find((o) => o.id === id));
   const markPaid = useOrderStore((s) => s.markPaid);
-  const products = useCatalogProducts();
+  const details = useAdminBoutiqueStore((s) => s.details);
+  const detailErrors = useAdminBoutiqueStore((s) => s.detailErrors);
+  const loadDetail = useAdminBoutiqueStore((s) => s.loadDetail);
+  const productIds = [...new Set(order?.lines.map((line) => line.productId))].join(",");
+  // Produits commandés relus (photos, produit retiré du catalogue)
+  useEffect(() => {
+    if (productIds) for (const productId of productIds.split(",")) void loadDetail(productId);
+  }, [productIds, loadDetail]);
+  const products = Object.values(details);
 
   if (!hydrated) return <div className="min-h-96" aria-hidden />;
 
@@ -153,7 +162,7 @@ export const OrderDetails = ({ id }: { id: string }) => {
                       <p className="truncate">{orderLineName(line)}</p>
                       <p className="text-xs text-taupe">
                         {formatPrice(line.unitPrice)} × {line.quantity}
-                        {!product && " · retiré du catalogue"}
+                        {detailErrors[line.productId]?.status === 404 && " · retiré du catalogue"}
                       </p>
                     </div>
                     <p className="self-center text-sm whitespace-nowrap">{formatPrice(line.unitPrice * line.quantity)}</p>

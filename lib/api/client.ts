@@ -3,6 +3,10 @@
 
 const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api").replace(/\/$/, "");
 
+// Adresse complète d'un fichier servi par l'API (photo de produit) : l'API renvoie des chemins relatifs à
+// son origine (`/api/boutique/photos/…`)
+export const apiFileUrl = (path: string) => new URL(path, API_URL).href;
+
 // Erreur renvoyée par l'API ({ statusCode, message, error }) ou serveur injoignable (status 0)
 export class ApiError extends Error {
   constructor(

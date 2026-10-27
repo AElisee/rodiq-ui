@@ -1,19 +1,26 @@
-import type { StaticImageData } from "next/image";
+// Boutique : types de référence et règles d'affichage. Les catégories et les produits viennent de l'API
+// (`lib/api/boutique.ts`), le stock est calculé et vérifié par le serveur.
 
 export type ProductCategory = {
   id: string;
   name: string;
-  // Texte affiché sur la fiche des produits qui n'ont pas encore leur propre description
+  // Texte affiché sur la fiche des produits qui n'ont pas encore leur propre description (peut être vide)
   description: string;
 };
 
-// Photo importée dans le code, ou ajoutée depuis l'admin (data URL en attendant le stockage de fichiers)
-export type ProductImage = StaticImageData | string;
+// Catégorie vue par l'admin
+export type AdminProductCategory = ProductCategory & {
+  // Produits de la catégorie, masqués compris (une catégorie non vide ne peut pas être supprimée)
+  productCount: number;
+};
+
+export type StockLevel = "ok" | "faible" | "epuise";
 
 // Déclinaison d'un produit (teinte, contenance…) avec son propre stock, au prix du produit
 export type ProductVariant = {
   id: string;
   name: string;
+  // Site : quantité qu'on peut mettre au panier (plafonnée par l'API) ; admin : stock exact
   stock: number;
 };
 
@@ -24,6 +31,7 @@ export type CapacityUnit = (typeof CAPACITY_UNITS)[number];
 export type WeightUnit = (typeof WEIGHT_UNITS)[number];
 export type Measure<Unit extends string = string> = { value: number; unit: Unit };
 
+// Produit vu par le site (jamais un produit masqué)
 export type Product = {
   id: string;
   name: string;
@@ -36,30 +44,59 @@ export type Product = {
   // Contenance (300 ml) et poids (1 kg) affichés sur la fiche
   capacity?: Measure<CapacityUnit>;
   weight?: Measure<WeightUnit>;
-  // Photos du produit : la première sert de visuel principal (boutique, panier)
-  images?: ProductImage[];
+  // Adresses des photos : la première sert de visuel principal (boutique, panier)
+  images?: string[];
   // Déclinaisons : le stock est alors suivi par déclinaison
   variants?: ProductVariant[];
-  // Quantité restante d'un produit sans déclinaison
+  // Produit sans déclinaison : quantité qu'on peut mettre au panier (plafonnée à 10 par l'API, le stock
+  // exact reste privé)
   stock?: number;
-  // Alerte « stock faible » dans l'admin à partir de cette quantité restante
-  lowStockThreshold?: number;
-  // Calculé depuis le stock (voir lib/stores/catalog-store.ts)
+  // Plus rien à vendre (toutes les déclinaisons épuisées)
   soldOut?: boolean;
 };
 
-// Stock de départ des produits du catalogue qui n'en précisent pas
-export const DEFAULT_STOCK = 10;
+// Déclinaison vue par l'admin : stock exact et niveau calculé par le serveur
+export type AdminProductVariant = ProductVariant & { level: StockLevel };
+
+// Produit vu par l'admin (masqués compris)
+export type AdminProduct = Omit<Product, "variants" | "stock"> & {
+  variants: AdminProductVariant[];
+  // Stock d'un produit sans déclinaison (0 s'il en a)
+  stock: number;
+  // Somme des déclinaisons, ou stock du produit
+  totalStock: number;
+  // Alerte « stock faible » à partir de cette quantité restante (par déclinaison s'il y en a)
+  lowStockThreshold: number;
+  // Niveau le plus critique : une seule déclinaison épuisée donne « epuise »
+  level: StockLevel;
+  hidden: boolean;
+  // Identifiants des photos, dans l'ordre de `images` (pour les retirer ou les réordonner)
+  photoIds: string[];
+  // À renvoyer avec la modification : refus (409) si le produit a changé entre-temps
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+// Produit ou déclinaison à réapprovisionner (épuisé ou sous son seuil d'alerte), calculé par l'API
+export type StockAlert = {
+  productId: string;
+  productName: string;
+  variantId?: string;
+  variantName?: string;
+  stock: number;
+  level: Exclude<StockLevel, "ok">;
+};
+
+export const MAX_PHOTOS = 4;
 export const DEFAULT_LOW_STOCK_THRESHOLD = 3;
 export const VARIANT_LABEL = "Variant";
 
-export const formatMeasure = ({ value, unit }: Measure) => `${value.toLocaleString("fr-FR")} ${unit}`;
+export const formatMeasure = ({ value, unit }: Measure) => `${value.toLocaleString("fr-FR")} ${unit}`;
 
 // Contenance puis poids, mis en forme (« 300 ml », « 1 kg »)
-export const productMeasures = (product: Product) =>
+export const productMeasures = (product: Pick<Product, "capacity" | "weight">) =>
   [product.capacity, product.weight].flatMap((m) => (m ? [formatMeasure(m)] : []));
-
-export const imageSrc = (image: ProductImage) => (typeof image === "string" ? image : image.src);
 
 // Quantité restante : celle de la déclinaison, sinon le total des déclinaisons, sinon celle du produit
 export const productStock = (product: Product, variantId?: string) => {
@@ -70,225 +107,11 @@ export const productStock = (product: Product, variantId?: string) => {
   return product.stock ?? 0;
 };
 
-export type StockLevel = "ok" | "faible" | "epuise";
-
 export const stockLevel = (stock: number, threshold = DEFAULT_LOW_STOCK_THRESHOLD): StockLevel =>
   stock <= 0 ? "epuise" : stock <= threshold ? "faible" : "ok";
 
-// Niveau le plus critique du produit (une seule déclinaison épuisée suffit à alerter)
-export const productLevel = (product: Product): StockLevel => {
-  const levels = product.variants?.length
-    ? product.variants.map((v) => stockLevel(v.stock, product.lowStockThreshold))
-    : [stockLevel(productStock(product), product.lowStockThreshold)];
-  return levels.includes("epuise") ? "epuise" : levels.includes("faible") ? "faible" : "ok";
-};
-
-// Produit ou déclinaison à réapprovisionner (épuisé ou sous le seuil d'alerte)
-export type StockAlert = { product: Product; variant?: ProductVariant; stock: number; level: Exclude<StockLevel, "ok"> };
-
-export const stockAlerts = (products: Product[]): StockAlert[] =>
-  products.flatMap((product) => {
-    const entries = product.variants?.length
-      ? product.variants.map((variant) => ({ variant, stock: variant.stock }))
-      : [{ variant: undefined, stock: productStock(product) }];
-    return entries.flatMap(({ variant, stock }) => {
-      const level = stockLevel(stock, product.lowStockThreshold);
-      return level === "ok" ? [] : [{ product, variant, stock, level }];
-    });
-  });
-
-// Catégories de départ : ajoutées, modifiées, réordonnées et supprimées ensuite depuis l'admin (catalog-store)
-export const productCategories: ProductCategory[] = [
-  {
-    id: "vernis",
-    name: "Vernis",
-    description:
-      "Une couleur soigneusement choisie pour sublimer vos ongles, avec une tenue et une brillance pensées pour durer entre deux rendez-vous.",
-  },
-  {
-    id: "soins-ongles",
-    name: "Soins des ongles",
-    description:
-      "Un soin ciblé pour nourrir, renforcer et protéger l'ongle naturel au quotidien, dans le prolongement de nos prestations.",
-  },
-  {
-    id: "mains-pieds",
-    name: "Mains & pieds",
-    description:
-      "Une formule douce et nourrissante pour garder des mains et des pieds souples et réconfortés, jour après jour.",
-  },
-  {
-    id: "accessoires",
-    name: "Accessoires",
-    description:
-      "Un accessoire de qualité professionnelle pour entretenir vos ongles chez vous avec précision et en douceur.",
-  },
-];
-
-// Catalogue provisoire : à remplacer par les produits (noms, prix, photos) transmis par la cliente.
-// Photos : importer les fichiers de public/images/produits puis les lister dans `images`, ex.
-//   import vernisNude1 from "@/public/images/produits/vernis-nude-rose-1.jpg";
-//   { id: "vernis-nude-rose", …, images: [vernisNude1, vernisNude2] }
-export const products: Product[] = [
-  { id: "vernis-nude-rose", name: "Vernis nude rosé", categoryId: "vernis", price: 6000 },
-  { id: "vernis-rouge-cerise", name: "Vernis rouge cerise", categoryId: "vernis", price: 6000 },
-  { id: "vernis-beige-sable", name: "Vernis beige sable", categoryId: "vernis", price: 6000 },
-  {
-    id: "vernis-chocolat",
-    name: "Vernis chocolat",
-    categoryId: "vernis",
-    price: 6000,
-    soldOut: true,
-  },
-  {
-    id: "base-top-coat",
-    name: "Base & top coat 2-en-1",
-    categoryId: "vernis",
-    price: 8000,
-  },
-  {
-    id: "top-coat-sechage-rapide",
-    name: "Top coat séchage rapide",
-    categoryId: "vernis",
-    price: 7500,
-  },
-  {
-    id: "huile-cuticules",
-    name: "Huile pour cuticules",
-    categoryId: "soins-ongles",
-    price: 9000,
-    compareAtPrice: 12000,
-  },
-  {
-    id: "elixir-fortifiant",
-    name: "Élixir fortifiant",
-    categoryId: "soins-ongles",
-    price: 10000,
-  },
-  { id: "durcisseur", name: "Durcisseur d'ongles", categoryId: "soins-ongles", price: 10000 },
-  {
-    id: "stylo-correcteur",
-    name: "Stylo correcteur",
-    categoryId: "soins-ongles",
-    price: 4000,
-  },
-  {
-    id: "creme-mains-karite",
-    name: "Crème mains au karité",
-    categoryId: "mains-pieds",
-    price: 7000,
-    compareAtPrice: 9000,
-  },
-  {
-    id: "baume-pieds",
-    name: "Baume pieds réparateur",
-    categoryId: "mains-pieds",
-    price: 9000,
-    soldOut: true,
-  },
-  { id: "gommage-pieds", name: "Gommage pieds", categoryId: "mains-pieds", price: 8500 },
-  { id: "vernis-rose-poudre", name: "Vernis rose poudré", categoryId: "vernis", price: 6000 },
-  { id: "vernis-blanc-perle", name: "Vernis blanc perlé", categoryId: "vernis", price: 6000 },
-  { id: "vernis-terracotta", name: "Vernis terracotta", categoryId: "vernis", price: 6000 },
-  { id: "vernis-bordeaux", name: "Vernis bordeaux", categoryId: "vernis", price: 6000 },
-  {
-    id: "vernis-or-scintillant",
-    name: "Vernis or scintillant",
-    categoryId: "vernis",
-    price: 6500,
-    compareAtPrice: 8000,
-  },
-  {
-    id: "vernis-caramel",
-    name: "Vernis caramel",
-    categoryId: "vernis",
-    price: 6000,
-    soldOut: true,
-  },
-  { id: "vernis-taupe", name: "Vernis taupe", categoryId: "vernis", price: 6000 },
-  { id: "vernis-mauve", name: "Vernis mauve", categoryId: "vernis", price: 6000 },
-  { id: "base-lissante", name: "Base lissante", categoryId: "vernis", price: 7500 },
-  { id: "top-coat-mat", name: "Top coat effet mat", categoryId: "vernis", price: 7500 },
-  {
-    id: "dissolvant-doux",
-    name: "Dissolvant doux sans acétone",
-    categoryId: "soins-ongles",
-    price: 5000,
-  },
-  {
-    id: "serum-croissance",
-    name: "Sérum croissance des ongles",
-    categoryId: "soins-ongles",
-    price: 12000,
-    compareAtPrice: 15000,
-  },
-  {
-    id: "huile-cuticules-roll-on",
-    name: "Huile cuticules roll-on",
-    categoryId: "soins-ongles",
-    price: 6000,
-  },
-  {
-    id: "creme-cuticules",
-    name: "Crème pour cuticules",
-    categoryId: "soins-ongles",
-    price: 7000,
-    soldOut: true,
-  },
-  { id: "masque-mains", name: "Masque mains nourrissant", categoryId: "mains-pieds", price: 8000 },
-  {
-    id: "gommage-mains",
-    name: "Gommage mains au sucre",
-    categoryId: "mains-pieds",
-    price: 7500,
-  },
-  {
-    id: "chaussettes-hydratantes",
-    name: "Chaussettes hydratantes",
-    categoryId: "mains-pieds",
-    price: 6500,
-  },
-  { id: "sels-bain-pieds", name: "Sels de bain pour pieds", categoryId: "mains-pieds", price: 5500 },
-  { id: "creme-pieds-karite", name: "Crème pieds au karité", categoryId: "mains-pieds", price: 7000 },
-  { id: "lime-verre", name: "Lime en verre", categoryId: "accessoires", price: 4500 },
-  { id: "polissoir", name: "Polissoir 4 faces", categoryId: "accessoires", price: 2500 },
-  {
-    id: "repousse-cuticules",
-    name: "Repousse-cuticules inox",
-    categoryId: "accessoires",
-    price: 3500,
-  },
-  { id: "pince-cuticules", name: "Pince à cuticules", categoryId: "accessoires", price: 5000 },
-  { id: "rape-pieds", name: "Râpe pieds", categoryId: "accessoires", price: 4000 },
-  {
-    id: "separateurs-orteils",
-    name: "Séparateurs d'orteils",
-    categoryId: "accessoires",
-    price: 1500,
-  },
-  {
-    id: "trousse-manucure",
-    name: "Trousse manucure complète",
-    categoryId: "accessoires",
-    price: 15000,
-    compareAtPrice: 20000,
-  },
-];
-
 // Pourcentage de réduction arrondi, ou null si le produit n'est pas en promotion
-export const getDiscountPercent = (product: Product) =>
+export const getDiscountPercent = (product: Pick<Product, "price" | "compareAtPrice">) =>
   product.compareAtPrice && product.compareAtPrice > product.price
     ? Math.round((1 - product.price / product.compareAtPrice) * 100)
     : null;
-
-export const getProduct = (id: string) => products.find((p) => p.id === id);
-
-// Catégories de départ seulement : côté navigateur, lire useProductCategories (catalog-store)
-export const getCategory = (id: string) => productCategories.find((c) => c.id === id);
-
-// Autres produits de la même catégorie, disponibles en premier
-export const getRelatedProducts = (product: Product, catalog: Product[], limit = 4) =>
-  catalog
-    .filter((p) => p.categoryId === product.categoryId && p.id !== product.id)
-    .toSorted((a, b) => Number(a.soldOut ?? false) - Number(b.soldOut ?? false))
-    .slice(0, limit);

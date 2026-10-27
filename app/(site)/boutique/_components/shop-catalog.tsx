@@ -2,7 +2,7 @@
 
 import { Search, X } from "lucide-react";
 import { useSearchParams } from "next/navigation";
-import { useDeferredValue, useRef, useState } from "react";
+import { useDeferredValue, useEffect, useRef, useState } from "react";
 import {
   Select,
   SelectContent,
@@ -10,54 +10,50 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useProductCategories, useShopProducts } from "@/lib/stores/catalog-store";
+import type { ShopQuery, ShopSort } from "@/lib/api/boutique";
+import { useShopCategories, useShopCategoriesLoaded, useShopStore } from "@/lib/stores/shop-store";
 import { cn } from "@/lib/utils";
 import { Pagination } from "./pagination";
 import { ProductCard } from "./product-card";
 
 const PAGE_SIZE = 24;
 
-type SortOrder = "default" | "price-asc" | "price-desc";
-
-const sortOptions: { value: SortOrder; label: string }[] = [
-  { value: "default", label: "Pertinence" },
-  { value: "price-asc", label: "Prix croissant" },
-  { value: "price-desc", label: "Prix décroissant" },
+const sortOptions: { value: ShopSort; label: string }[] = [
+  { value: "defaut", label: "Pertinence" },
+  { value: "prix-asc", label: "Prix croissant" },
+  { value: "prix-desc", label: "Prix décroissant" },
 ];
 
-// Recherche insensible à la casse et aux accents (« elixir » trouve « Élixir »)
-const normalize = (text: string) =>
-  text.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase().trim();
-
-// Filtres (catégorie, recherche, tri par prix) et grille des produits
+// Filtres (catégorie, recherche, tri par prix) et grille des produits : filtrage, tri et pagination
+// faits par l'API
 export const ShopCatalog = () => {
   // Catégorie choisie depuis une fiche produit (/boutique?categorie=…)
   const [selectedCategoryId, setCategoryId] = useState<string | null>(useSearchParams().get("categorie"));
   const [query, setQuery] = useState("");
-  const [sort, setSort] = useState<SortOrder>("default");
+  const [sort, setSort] = useState<ShopSort>("defaut");
   const [page, setPage] = useState(1);
   const deferredQuery = useDeferredValue(query);
   const catalogRef = useRef<HTMLDivElement>(null);
-  const products = useShopProducts();
-  const categories = useProductCategories();
+  const categoriesLoaded = useShopCategoriesLoaded();
+  // Catégories ayant au moins un produit visible, dans l'ordre choisi dans l'admin
+  const categories = useShopCategories();
+  const categoriesError = useShopStore((s) => s.categoriesError);
+  const result = useShopStore((s) => s.page);
+  const pageError = useShopStore((s) => s.pageError);
+  const loadPage = useShopStore((s) => s.loadPage);
 
-  // Catégories dans l'ordre choisi dans l'admin, sans celles qui n'ont aucun produit visible
-  const shownCategories = categories.filter((c) => products.some((p) => p.categoryId === c.id));
-  const categoryId = shownCategories.some((c) => c.id === selectedCategoryId) ? selectedCategoryId : null;
+  // Ignore une catégorie inconnue ou sans produit visible (lien ?categorie=… périmé), une fois la liste lue
+  const categoryId =
+    !categoriesLoaded || categoriesError || categories.some((c) => c.id === selectedCategoryId)
+      ? selectedCategoryId
+      : null;
 
-  const search = normalize(deferredQuery);
-  const filtered = products
-    .filter((p) => !categoryId || p.categoryId === categoryId)
-    .filter((p) => !search || normalize(p.name).includes(search))
-    .toSorted((a, b) => {
-      if (sort === "price-asc") return a.price - b.price;
-      if (sort === "price-desc") return b.price - a.price;
-      return 0;
-    });
+  const filters: ShopQuery = { categoryId, search: deferredQuery, sort, page, pageSize: PAGE_SIZE };
+  const filtersKey = JSON.stringify(filters);
 
-  const pageCount = Math.ceil(filtered.length / PAGE_SIZE);
-  const currentPage = Math.min(page, Math.max(pageCount, 1));
-  const visible = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  useEffect(() => {
+    if (categoriesLoaded) void loadPage(JSON.parse(filtersKey) as ShopQuery);
+  }, [categoriesLoaded, filtersKey, loadPage]);
 
   // Tout changement de filtre ou de tri ramène à la première page
   const changeCategory = (id: string | null) => {
@@ -68,7 +64,7 @@ export const ShopCatalog = () => {
     setQuery(value);
     setPage(1);
   };
-  const changeSort = (value: SortOrder) => {
+  const changeSort = (value: ShopSort) => {
     setSort(value);
     setPage(1);
   };
@@ -84,7 +80,11 @@ export const ShopCatalog = () => {
     changeQuery("");
   };
 
-  const categoryButtons = [{ id: null, name: "Tout" }, ...shownCategories];
+  const total = result?.total ?? 0;
+  const pageCount = Math.ceil(total / PAGE_SIZE);
+  const visible = result?.products ?? [];
+
+  const categoryButtons = [{ id: null, name: "Tout" }, ...categories];
 
   return (
     <div ref={catalogRef} className="mt-10 scroll-mt-32 md:mt-12">
@@ -136,9 +136,9 @@ export const ShopCatalog = () => {
 
         <div className="flex items-center justify-between gap-4 sm:justify-end">
           <p className="font-sans text-sm text-taupe" aria-live="polite">
-            {filtered.length} produit{filtered.length > 1 && "s"}
+            {result && `${total} produit${total > 1 ? "s" : ""}`}
           </p>
-          <Select value={sort} onValueChange={(value) => changeSort(value as SortOrder)}>
+          <Select value={sort} onValueChange={(value) => changeSort(value as ShopSort)}>
             <SelectTrigger
               aria-label="Trier les produits"
               className="h-12 min-w-48 justify-between rounded-full border-sand px-6 font-sans text-base text-cocoa data-[size=default]:h-12 [&>svg]:size-5"
@@ -156,7 +156,23 @@ export const ShopCatalog = () => {
         </div>
       </div>
 
-      {visible.length > 0 ? (
+      {pageError ? (
+        <div role="alert" className="flex flex-col items-center py-20 text-center">
+          <p className="font-serif text-[clamp(1.1rem,1.5vw,1.35rem)] text-cocoa">
+            Les produits n&apos;ont pas pu être chargés.
+          </p>
+          <p className="mt-3 max-w-md font-sans text-sm text-taupe">{pageError}</p>
+          <button
+            type="button"
+            onClick={() => void loadPage(filters)}
+            className="mt-6 inline-flex h-11 items-center justify-center rounded-full bg-blush px-6 font-sans text-base text-cocoa transition-colors hover:bg-sand"
+          >
+            Réessayer
+          </button>
+        </div>
+      ) : !result ? (
+        <div className="mt-10 min-h-96" aria-hidden />
+      ) : visible.length > 0 ? (
         <>
           <ul className="mt-10 grid grid-cols-2 gap-x-4 gap-y-10 md:grid-cols-3 md:gap-x-6 lg:grid-cols-4 lg:gap-y-14">
             {visible.map((product) => (
@@ -166,12 +182,12 @@ export const ShopCatalog = () => {
             ))}
           </ul>
 
-          <Pagination page={currentPage} pageCount={pageCount} onPageChange={changePage} />
+          <Pagination page={result.page} pageCount={pageCount} onPageChange={changePage} />
         </>
       ) : (
         <div className="flex flex-col items-center py-20 text-center">
           <p className="font-serif text-[clamp(1.1rem,1.5vw,1.35rem)] text-cocoa">
-            Aucun produit ne correspond à votre recherche.
+            {hasFilters ? "Aucun produit ne correspond à votre recherche." : "Aucun produit n'est proposé pour le moment."}
           </p>
           {hasFilters && (
             <button

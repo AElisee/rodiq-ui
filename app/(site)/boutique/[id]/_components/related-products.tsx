@@ -1,16 +1,22 @@
 "use client";
 
-import { getRelatedProducts } from "@/lib/produits";
-import { useCatalogProduct, useShopProducts } from "@/lib/stores/catalog-store";
+import { useEffect } from "react";
+import { useShopStore } from "@/lib/stores/shop-store";
 import { ProductCard } from "../../_components/product-card";
 
-// Suggestions de la même catégorie, sans les produits masqués par l'admin
+// Suggestions de la même catégorie, lues une fois la fiche chargée (jamais de produit masqué)
 export const RelatedProducts = ({ id }: { id: string }) => {
-  const product = useCatalogProduct(id);
-  const shopProducts = useShopProducts();
-  const related = product && !product.hidden ? getRelatedProducts(product, shopProducts) : [];
+  const product = useShopStore((s) => s.products[id]);
+  const related = useShopStore((s) => s.related[id]) ?? [];
+  const loadRelated = useShopStore((s) => s.loadRelated);
+  const categoryId = product?.categoryId;
 
-  if (related.length === 0) return null;
+  useEffect(() => {
+    const current = useShopStore.getState().products[id];
+    if (current) void loadRelated(current);
+  }, [id, categoryId, loadRelated]);
+
+  if (!product || related.length === 0) return null;
 
   return (
     <section className="w-full border-t border-sand bg-pearl px-4 py-16 md:px-8 md:py-20">

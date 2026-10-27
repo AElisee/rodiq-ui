@@ -1,6 +1,5 @@
 import { addDays, format, startOfDay } from "date-fns";
 import { deliveryZones, type Order, type OrderLine, type OrderStatus } from "@/lib/commandes";
-import { products } from "@/lib/produits";
 import type { Account } from "@/lib/stores/auth-store";
 
 // ---------------------------------------------------------------------------
@@ -15,6 +14,20 @@ const seeded = (seed: number) => () => {
   t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
   return ((t ^ (t >>> 14)) >>> 0) / 4_294_967_296;
 };
+
+// Articles des commandes de démonstration (le catalogue réel vient de l'API : ces identifiants n'y existent pas)
+const demoProducts = [
+  { id: "vernis-nude-rose", name: "Vernis nude rosé", price: 6000 },
+  { id: "vernis-rouge-cerise", name: "Vernis rouge cerise", price: 6000 },
+  { id: "base-top-coat", name: "Base & top coat 2-en-1", price: 8000 },
+  { id: "huile-cuticules", name: "Huile pour cuticules", price: 9000 },
+  { id: "elixir-fortifiant", name: "Élixir fortifiant", price: 10000 },
+  { id: "creme-mains-karite", name: "Crème mains au karité", price: 7000 },
+  { id: "gommage-pieds", name: "Gommage pieds", price: 8500 },
+  { id: "serum-croissance", name: "Sérum croissance des ongles", price: 12000 },
+  { id: "lime-verre", name: "Lime en verre", price: 4500 },
+  { id: "trousse-manucure", name: "Trousse manucure complète", price: 15000 },
+] as const;
 
 const people = [
   ["Mariam", "Traoré", "05 12 34 56 78"],
@@ -73,7 +86,7 @@ export const generateDemoOrders = (now = new Date()): Order[] => {
       const account = pick(demoClientAccounts);
       const lines: OrderLine[] = [];
       for (let i = 0, total = 1 + Math.floor(random() * 3); i < total; i++) {
-        const product = pick(products.filter((p) => !p.soldOut));
+        const product = pick(demoProducts);
         if (lines.some((l) => l.productId === product.id)) continue;
         lines.push({
           productId: product.id,

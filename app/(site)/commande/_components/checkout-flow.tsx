@@ -27,7 +27,7 @@ import { deliveryFeeFor, generateOrderReference, type Order } from "@/lib/comman
 import { formatPrice } from "@/lib/prestations";
 import { selectCurrentAccount, useAuthHydrated, useAuthStore } from "@/lib/stores/auth-store";
 import { resolveCartLines, useCartHydrated, useCartStore } from "@/lib/stores/cart-store";
-import { useShopProducts } from "@/lib/stores/catalog-store";
+import { useShopProductsById } from "@/lib/stores/shop-store";
 import { useOrderStore, useOrdersHydrated } from "@/lib/stores/order-store";
 import { useSettingsHydrated, useSettingsStore } from "@/lib/stores/settings-store";
 import {
@@ -87,7 +87,9 @@ export const CheckoutFlow = () => {
   const settingsHydrated = useSettingsHydrated();
   const items = useCartStore((s) => s.items);
   const clearCart = useCartStore((s) => s.clear);
-  const products = useShopProducts();
+  const { products, pending: productsPending, error: productsError, retry: retryProducts } = useShopProductsById(
+    items.map((item) => item.id),
+  );
   const addOrder = useOrderStore((s) => s.add);
   const account = useAuthStore(selectCurrentAccount);
   const signOut = useAuthStore((s) => s.signOut);
@@ -132,12 +134,31 @@ export const CheckoutFlow = () => {
     });
   }, [account, reset, getValues]);
 
-  // Le contenu dépend du navigateur (panier, session) : rien à afficher côté serveur
-  if (!cartHydrated || !authHydrated || !ordersHydrated || !settingsHydrated) {
+  if (confirmed) return <OrderConfirmation order={confirmed} />;
+
+  // Le contenu dépend du navigateur (panier, session) et des produits relus depuis l'API
+  if (!cartHydrated || !authHydrated || !ordersHydrated || !settingsHydrated || productsPending) {
     return <div className="min-h-96" aria-hidden />;
   }
 
-  if (confirmed) return <OrderConfirmation order={confirmed} />;
+  // Lecture des produits ratée : impossible de vérifier prix et disponibilités
+  if (productsError) {
+    return (
+      <div role="alert" className="flex flex-col items-center py-12 text-center">
+        <p className="font-serif text-[clamp(1.25rem,2vw,1.75rem)] text-cocoa">
+          Les articles de votre panier n&apos;ont pas pu être chargés.
+        </p>
+        <p className="mt-3 max-w-md font-sans text-sm text-taupe">{productsError}</p>
+        <button
+          type="button"
+          onClick={() => void retryProducts()}
+          className="mt-10 inline-flex h-14 items-center justify-center rounded-full bg-blush px-10 font-sans text-base text-cocoa transition-colors hover:bg-sand"
+        >
+          Réessayer
+        </button>
+      </div>
+    );
+  }
 
   // Ignore les produits retirés du catalogue depuis l'ajout au panier
   const lines = resolveCartLines(items, products);

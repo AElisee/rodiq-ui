@@ -5,7 +5,7 @@ import { Minus, Plus, X } from "lucide-react";
 import { ProductVisual } from "@/components/shop/product-visual";
 import { formatPrice } from "@/lib/prestations";
 import { productMeasures } from "@/lib/produits";
-import { useProductCategoryNames, useShopProducts } from "@/lib/stores/catalog-store";
+import { useShopCategories, useShopProductsById } from "@/lib/stores/shop-store";
 import { resolveCartLines, useCartHydrated, useCartStore } from "@/lib/stores/cart-store";
 
 // Lignes du panier et récapitulatif de commande
@@ -15,13 +15,32 @@ export const CartContent = () => {
   const setQuantity = useCartStore((s) => s.setQuantity);
   const remove = useCartStore((s) => s.remove);
   const clear = useCartStore((s) => s.clear);
-  const products = useShopProducts();
-  const categoryNames = useProductCategoryNames();
+  const { products, pending, error, retry } = useShopProductsById(items.map((item) => item.id));
+  const categoryNames = new Map(useShopCategories().map((c) => [c.id, c.name]));
 
-  // Le panier est relu depuis le navigateur : rien à afficher côté serveur
-  if (!hydrated) return <div className="min-h-64" aria-hidden />;
+  // Le panier est relu depuis le navigateur, ses produits depuis l'API : rien à afficher avant
+  if (!hydrated || pending) return <div className="min-h-64" aria-hidden />;
 
-  // Ignore les produits retirés du catalogue depuis l'ajout au panier
+  // Lecture des produits ratée : ne pas présenter un panier vide ou incomplet comme s'il l'était
+  if (error) {
+    return (
+      <div role="alert" className="flex flex-col items-center py-12 text-center">
+        <p className="font-serif text-[clamp(1.25rem,2vw,1.75rem)] text-cocoa">
+          Les articles de votre panier n&apos;ont pas pu être chargés.
+        </p>
+        <p className="mt-3 max-w-md font-sans text-sm text-taupe">{error}</p>
+        <button
+          type="button"
+          onClick={() => void retry()}
+          className="mt-10 inline-flex h-14 items-center justify-center rounded-full bg-blush px-10 font-sans text-base text-cocoa transition-colors hover:bg-sand"
+        >
+          Réessayer
+        </button>
+      </div>
+    );
+  }
+
+  // Ignore les produits retirés ou masqués depuis l'ajout au panier
   const lines = resolveCartLines(items, products);
 
   if (lines.length === 0) {

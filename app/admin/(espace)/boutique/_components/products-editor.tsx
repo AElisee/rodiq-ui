@@ -3,7 +3,8 @@
 import { Eye, Pencil, Plus, Search } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useDeferredValue, useState } from "react";
+import { useDeferredValue, useEffect, useState } from "react";
+import { toast } from "sonner";
 import {
   ADMIN_PAGE_SIZE,
   AdminPageHeader,
@@ -12,146 +13,181 @@ import {
   StockBadge,
   adminButtonClassName,
   adminInputClassName,
-  normalizeSearch,
 } from "@/components/admin/admin-ui";
-import { AdminExportButtons, type ExportTable } from "@/components/admin/admin-export";
+import { AdminExportButtons } from "@/components/admin/admin-export";
 import { ProductVisual } from "@/components/shop/product-visual";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { errorMessage } from "@/lib/api/client";
+import type { AdminProductsQuery, AdminProductsSort } from "@/lib/api/boutique";
 import { formatPrice } from "@/lib/prestations";
+import { getDiscountPercent, type AdminProduct, type StockLevel } from "@/lib/produits";
 import {
-  getDiscountPercent,
-  productLevel,
-  productStock,
-  stockLevel,
-} from "@/lib/produits";
-import {
-  useCatalogHydrated,
-  useCatalogProducts,
-  useCatalogStore,
-  useProductCategories,
-  useProductCategoryNames,
-  type CatalogProduct,
-} from "@/lib/stores/catalog-store";
+  useAdminBoutiqueStore,
+  useAdminCategories,
+  useAdminCategoriesLoaded,
+  useBoutiqueSummary,
+} from "@/lib/stores/admin-boutique-store";
 import { useOrdersHydrated } from "@/lib/stores/order-store";
 import { cn } from "@/lib/utils";
-import { ProductRowActions, iconButtonClassName } from "./product-actions";
-import { ProductCreateSheet, useSoldCounts } from "./product-form";
+import { DeleteProduct, iconButtonClassName } from "./product-actions";
+import { ProductCreateSheet, useSoldCounts, type SoldCounts } from "./product-form";
 
-type SortOrder = "catalogue" | "nom" | "prix-asc" | "prix-desc" | "stock";
-
-const sortOptions: { value: SortOrder; label: string }[] = [
-  { value: "catalogue", label: "Ordre du catalogue" },
+const sortOptions: { value: AdminProductsSort; label: string }[] = [
+  { value: "defaut", label: "Ordre du catalogue" },
   { value: "nom", label: "Nom" },
   { value: "prix-asc", label: "Prix croissant" },
   { value: "prix-desc", label: "Prix décroissant" },
   { value: "stock", label: "Stock restant" },
+  { value: "recent", label: "Ajoutés récemment" },
 ];
 
-// « alerte » : épuisés et stocks faibles
-type StockFilter = "tous" | "alerte" | "epuise";
-
-const stockFilterOptions: { value: StockFilter; label: string }[] = [
+const levelOptions: { value: StockLevel | "tous"; label: string }[] = [
   { value: "tous", label: "Tous les stocks" },
-  { value: "alerte", label: "À réapprovisionner" },
+  { value: "faible", label: "Stock faible" },
   { value: "epuise", label: "Épuisés" },
+  { value: "ok", label: "Stock suffisant" },
 ];
 
-// Produits de la boutique : ajout, prix, promotions, déclinaisons, stock et visibilité
-export const ProductsEditor = () => {
-  const hydrated = useCatalogHydrated();
-  const ordersHydrated = useOrdersHydrated();
-  const products = useCatalogProducts();
-  const saveProduct = useCatalogStore((s) => s.saveProduct);
-  const categories = useProductCategories();
-  const categoryNames = useProductCategoryNames();
-  const searchParams = useSearchParams();
-  const initialStock = searchParams.get("stock");
-  const [selectedCategoryId, setCategoryId] = useState<string | null>(searchParams.get("categorie"));
-  const [stockFilter, setStockFilter] = useState<StockFilter>(
-    stockFilterOptions.some((o) => o.value === initialStock) ? (initialStock as StockFilter) : "tous",
-  );
-  const [sort, setSort] = useState<SortOrder>("catalogue");
-  const [query, setQuery] = useState("");
-  const [page, setPage] = useState(1);
-  const search = normalizeSearch(useDeferredValue(query));
+type Visibility = AdminProductsQuery["visibility"];
 
+const visibilityOptions: { value: NonNullable<Visibility> | "tous"; label: string }[] = [
+  { value: "tous", label: "Visibles et masqués" },
+  { value: "visibles", label: "Visibles en boutique" },
+  { value: "masques", label: "Masqués" },
+];
+
+const exportHeaders = [
+  "Produit",
+  "Déclinaison",
+  "Catégorie",
+  "Prix (FCFA)",
+  "Prix d'origine (FCFA)",
+  "Remise",
+  "Reste",
+  "Seuil d'alerte",
+  "Vendus",
+  "Visible",
+];
+
+const exportRows = (product: AdminProduct, categoryName: string, sold: SoldCounts) => {
+  const discount = getDiscountPercent(product);
+  const common = [
+    categoryName,
+    product.price,
+    discount !== null ? product.compareAtPrice! : "",
+    discount !== null ? `-${discount}%` : "",
+  ];
+  const entries = product.variants.length
+    ? product.variants.map((v) => ({ name: v.name, stock: v.stock, key: `${product.id}:${v.id}` }))
+    : [{ name: "", stock: product.stock, key: `${product.id}:` }];
+  return entries.map((entry) => [
+    product.name,
+    entry.name,
+    ...common,
+    entry.stock,
+    product.lowStockThreshold,
+    sold.get(entry.key) ?? 0,
+    product.hidden ? "Non" : "Oui",
+  ]);
+};
+
+// Produits de la boutique : ajout, prix, promotions, déclinaisons, stock et visibilité. Filtres,
+// recherche, tri et pagination faits par l'API
+export const ProductsEditor = () => {
+  const ordersHydrated = useOrdersHydrated();
+  const categoriesLoaded = useAdminCategoriesLoaded();
+  const categories = useAdminCategories();
+  const page = useAdminBoutiqueStore((s) => s.page);
+  const pageError = useAdminBoutiqueStore((s) => s.pageError);
+  const loadPage = useAdminBoutiqueStore((s) => s.loadPage);
+  const fetchMatching = useAdminBoutiqueStore((s) => s.fetchMatching);
+  const setHidden = useAdminBoutiqueStore((s) => s.setHidden);
+  useBoutiqueSummary();
+  const summary = useAdminBoutiqueStore((s) => s.summary);
+  const searchParams = useSearchParams();
+  const initialLevel = searchParams.get("stock");
+  const [selectedCategoryId, setCategoryId] = useState<string | null>(searchParams.get("categorie"));
+  const [level, setLevel] = useState<StockLevel | null>(
+    levelOptions.some((o) => o.value === initialLevel && o.value !== "tous") ? (initialLevel as StockLevel) : null,
+  );
+  const [visibility, setVisibility] = useState<Visibility>(null);
+  const [sort, setSort] = useState<AdminProductsSort>("defaut");
+  const [query, setQuery] = useState("");
+  const [pageNumber, setPageNumber] = useState(1);
+  // Produits dont la visibilité est en cours d'enregistrement
+  const [toggling, setToggling] = useState<string[]>([]);
+  const search = useDeferredValue(query);
   const sold = useSoldCounts();
 
-  if (!hydrated || !ordersHydrated) return <div className="min-h-96" aria-hidden />;
+  // Ignore une catégorie inconnue ou supprimée (lien ?categorie=… périmé), une fois la liste lue
+  const categoryId =
+    !categoriesLoaded || categories.length === 0 || categories.some((c) => c.id === selectedCategoryId)
+      ? selectedCategoryId
+      : null;
+  const categoryNames = new Map(categories.map((c) => [c.id, c.name]));
 
-  // Ignore une catégorie inconnue ou supprimée (lien ?categorie=… périmé)
-  const categoryId = categories.some((c) => c.id === selectedCategoryId) ? selectedCategoryId : null;
+  const filters: AdminProductsQuery = {
+    categoryId,
+    search,
+    level,
+    visibility,
+    sort,
+    page: pageNumber,
+    pageSize: ADMIN_PAGE_SIZE,
+  };
+  const filtersKey = JSON.stringify(filters);
 
-  const filtered = products
-    .filter((p) => !categoryId || p.categoryId === categoryId)
-    .filter((p) => !search || normalizeSearch(p.name).includes(search))
-    .filter((p) => {
-      if (stockFilter === "tous") return true;
-      const level = productLevel(p);
-      return stockFilter === "epuise" ? level === "epuise" : level !== "ok";
-    })
-    .toSorted((a, b) => {
-      if (sort === "nom") return a.name.localeCompare(b.name, "fr");
-      if (sort === "prix-asc") return a.price - b.price;
-      if (sort === "prix-desc") return b.price - a.price;
-      if (sort === "stock") return productStock(a) - productStock(b);
-      return 0;
-    });
+  useEffect(() => {
+    if (categoriesLoaded) void loadPage(JSON.parse(filtersKey) as AdminProductsQuery);
+  }, [categoriesLoaded, filtersKey, loadPage]);
 
-  const pageCount = Math.ceil(filtered.length / ADMIN_PAGE_SIZE);
-  const currentPage = Math.min(page, Math.max(pageCount, 1));
-  const visible = filtered.slice((currentPage - 1) * ADMIN_PAGE_SIZE, currentPage * ADMIN_PAGE_SIZE);
+  if (!ordersHydrated || (!page && !pageError)) return <div className="min-h-96" aria-hidden />;
 
-  const toggleHidden = (product: CatalogProduct) => saveProduct({ ...product, hidden: !product.hidden });
+  const pageCount = page ? Math.ceil(page.total / ADMIN_PAGE_SIZE) : 0;
+  const currentPage = page?.page ?? pageNumber;
+  const visible = page?.products ?? [];
 
-  const alertCount = products.filter((p) => productLevel(p) !== "ok").length;
-  const hiddenCount = products.filter((p) => p.hidden).length;
+  const resetPage =
+    <T,>(setter: (value: T) => void) =>
+    (value: T) => {
+      setter(value);
+      setPageNumber(1);
+    };
 
-  const exportTable: ExportTable = {
+  const toggleHidden = async (product: AdminProduct) => {
+    setToggling((ids) => [...ids, product.id]);
+    try {
+      await setHidden(product, !product.hidden);
+    } catch (error) {
+      toast.error(
+        product.hidden ? `« ${product.name} » n'a pas été remis en boutique` : `« ${product.name} » n'a pas été masqué`,
+        { description: errorMessage(error) },
+      );
+    } finally {
+      setToggling((ids) => ids.filter((id) => id !== product.id));
+    }
+  };
+
+  const loadExport = async () => ({
     title: "Produits",
     filename: "produits",
-    headers: [
-      "Produit",
-      "Déclinaison",
-      "Catégorie",
-      "Prix (FCFA)",
-      "Prix d'origine (FCFA)",
-      "Remise",
-      "Reste",
-      "Seuil d'alerte",
-      "Vendus",
-      "Visible",
-    ],
-    rows: filtered.flatMap((p) => {
-      const discount = getDiscountPercent(p);
-      const common = [
-        categoryNames.get(p.categoryId) ?? "",
-        p.price,
-        discount !== null ? p.compareAtPrice! : "",
-        discount !== null ? `-${discount}%` : "",
-      ];
-      const entries = p.variants?.length
-        ? p.variants.map((v) => ({ name: v.name, stock: v.stock, key: `${p.id}:${v.id}` }))
-        : [{ name: "", stock: productStock(p), key: `${p.id}:` }];
-      return entries.map((entry) => [
-        p.name,
-        entry.name,
-        ...common,
-        entry.stock,
-        p.lowStockThreshold ?? "",
-        sold.get(entry.key) ?? 0,
-        p.hidden ? "Non" : "Oui",
-      ]);
-    }),
-  };
+    headers: exportHeaders,
+    rows: (await fetchMatching({ categoryId, search, level, visibility, sort })).flatMap((p) =>
+      exportRows(p, categoryNames.get(p.categoryId) ?? "", sold),
+    ),
+  });
 
   return (
     <div className="flex flex-col gap-6">
       <AdminPageHeader
         title="Produits"
-        description={`${products.length} produits · ${alertCount} à réapprovisionner · ${hiddenCount} masqué${hiddenCount > 1 ? "s" : ""}`}
+        description={
+          summary
+            ? `${summary.total} produit${summary.total > 1 ? "s" : ""} · ${summary.toRestock} à réapprovisionner · ${summary.hidden} masqué${summary.hidden > 1 ? "s" : ""}`
+            : undefined
+        }
       >
-        <AdminExportButtons table={exportTable} />
+        <AdminExportButtons count={page?.total ?? 0} load={loadExport} />
         <ProductCreateSheet
           sold={sold}
           trigger={
@@ -164,171 +200,171 @@ export const ProductsEditor = () => {
       </AdminPageHeader>
 
       <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-        <div className="relative w-full xl:max-w-sm">
+        <div className="relative w-full xl:max-w-xs">
           <Search className="pointer-events-none absolute top-1/2 left-4 size-4 -translate-y-1/2 text-taupe" strokeWidth={1.75} aria-hidden />
           <input
             type="search"
             value={query}
-            onChange={(e) => {
-              setQuery(e.target.value);
-              setPage(1);
-            }}
+            onChange={(e) => resetPage(setQuery)(e.target.value)}
             placeholder="Rechercher un produit"
             aria-label="Rechercher un produit"
             className={`${adminInputClassName} pl-10`}
           />
         </div>
-        <div className="grid gap-3 sm:grid-cols-3 xl:w-auto">
+        <div className="grid gap-3 sm:grid-cols-2 xl:w-auto xl:grid-cols-4">
           <AdminSelect
             label="Catégories"
             value={categoryId ?? "all"}
-            onValueChange={(v) => {
-              setCategoryId(v === "all" ? null : v);
-              setPage(1);
-            }}
+            onValueChange={(v) => resetPage(setCategoryId)(v === "all" ? null : v)}
             options={[{ value: "all", label: "Toutes les catégories" }, ...categories.map((c) => ({ value: c.id, label: c.name }))]}
-            className="xl:w-52"
+            className="xl:w-48"
           />
           <AdminSelect
             label="Stock"
-            value={stockFilter}
-            onValueChange={(v) => {
-              setStockFilter(v);
-              setPage(1);
-            }}
-            options={stockFilterOptions}
-            className="xl:w-52"
+            value={level ?? "tous"}
+            onValueChange={(v) => resetPage(setLevel)(v === "tous" ? null : (v as StockLevel))}
+            options={levelOptions}
+            className="xl:w-44"
+          />
+          <AdminSelect
+            label="Visibilité"
+            value={visibility ?? "tous"}
+            onValueChange={(v) => resetPage(setVisibility)(v === "tous" ? null : (v as Visibility))}
+            options={visibilityOptions}
+            className="xl:w-48"
           />
           <AdminSelect
             label="Trier par"
             value={sort}
-            onValueChange={(v) => {
-              setSort(v);
-              setPage(1);
-            }}
+            onValueChange={resetPage(setSort)}
             options={sortOptions}
-            className="xl:w-52"
+            className="xl:w-48"
           />
         </div>
       </div>
 
-      <div className="rounded-[var(--radius)] border border-sand">
-        <Table className="font-sans text-cocoa">
-          <TableHeader>
-            <TableRow className="border-sand hover:bg-transparent">
-              <TableHead className="w-12 px-4 text-right text-taupe">#</TableHead>
-              <TableHead className="px-4 text-taupe">Produit</TableHead>
-              <TableHead className="px-4 text-taupe">Catégorie</TableHead>
-              <TableHead className="px-4 text-right text-taupe">Prix</TableHead>
-              <TableHead className="px-4 text-taupe">Reste en stock</TableHead>
-              <TableHead className="px-4 text-center text-taupe">Visible</TableHead>
-              <TableHead className="px-4" />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {visible.map((product, index) => {
-              const discount = getDiscountPercent(product);
-              const stock = productStock(product);
-              const threshold = product.lowStockThreshold;
-              const href = `/admin/boutique/produits/${encodeURIComponent(product.id)}`;
-              return (
-                <TableRow key={product.id} className="border-sand hover:bg-transparent">
-                  <TableCell className="px-4 py-3 text-right align-middle text-taupe tabular-nums">
-                    {(currentPage - 1) * ADMIN_PAGE_SIZE + index + 1}
-                  </TableCell>
-                  <TableCell className="px-4 py-3 align-middle">
-                    <div className="flex items-center gap-3">
-                      <div className="relative aspect-[4/5] w-10 shrink-0 overflow-hidden rounded-md bg-sand">
-                        <ProductVisual product={product} sizes="40px" iconClassName="size-4" />
-                      </div>
-                      <div className="min-w-0">
-                        <Link
-                          href={href}
-                          className={cn("underline-offset-4 hover:underline", product.hidden && "text-taupe line-through")}
-                        >
-                          {product.name}
-                        </Link>
-                        {product.custom && <p className="text-xs text-taupe">Ajouté depuis l&apos;admin</p>}
-                      </div>
-                    </div>
-                  </TableCell>
-                  <TableCell className="px-4 py-3 align-middle">
-                    {categoryNames.has(product.categoryId) ? (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setCategoryId(product.categoryId);
-                          setPage(1);
-                        }}
-                        title="Afficher les produits de cette catégorie"
-                        className="text-sm whitespace-nowrap underline-offset-4 hover:underline"
-                      >
-                        {categoryNames.get(product.categoryId)}
-                      </button>
-                    ) : (
-                      <span className="text-xs text-taupe">Sans catégorie</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="px-4 py-3 text-right align-middle whitespace-nowrap">
-                    <p>{formatPrice(product.price)}</p>
-                    {discount !== null && (
-                      <p className="text-xs text-taupe">
-                        <s>{formatPrice(product.compareAtPrice!)}</s> · -{discount}%
-                      </p>
-                    )}
-                  </TableCell>
-                  <TableCell className="px-4 py-3 align-middle">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="tabular-nums">{stock}</span>
-                      <StockBadge level={productLevel(product)} />
-                    </div>
-                    {product.variants?.length ? (
-                      <ul className="mt-1 flex max-w-64 flex-wrap gap-x-3 text-xs text-taupe">
-                        {product.variants.map((v) => (
-                          <li
-                            key={v.id}
-                            className={cn(stockLevel(v.stock, threshold) !== "ok" && "text-cocoa")}
-                          >
-                            {v.name} : {v.stock}
-                          </li>
-                        ))}
-                      </ul>
-                    ) : null}
-                  </TableCell>
-                  <TableCell className="px-4 py-3 text-center align-middle">
-                    <input
-                      type="checkbox"
-                      checked={!product.hidden}
-                      onChange={() => toggleHidden(product)}
-                      aria-label={`${product.name} visible en boutique`}
-                      className="size-4 accent-cocoa"
-                    />
-                  </TableCell>
-                  <TableCell className="px-4 py-3 align-middle">
-                    <div className="flex items-center justify-end gap-1">
-                      <Link href={href} aria-label={`Voir ${product.name}`} title="Voir la fiche" className={iconButtonClassName}>
-                        <Eye className="size-4" strokeWidth={1.75} />
-                      </Link>
-                      <Link
-                        href={`${href}/modifier`}
-                        aria-label={`Modifier ${product.name}`}
-                        title="Modifier"
-                        className={iconButtonClassName}
-                      >
-                        <Pencil className="size-4" strokeWidth={1.75} />
-                      </Link>
-                      <ProductRowActions product={product} />
-                    </div>
-                  </TableCell>
+      {pageError ? (
+        <div role="alert" className="rounded-[var(--radius)] border border-sand p-6 font-sans text-sm text-cocoa">
+          <p className="font-serif text-lg">Les produits n&apos;ont pas pu être chargés.</p>
+          <p className="mt-2 text-taupe">{pageError}</p>
+          <button type="button" onClick={() => void loadPage(filters)} className="mt-4 underline underline-offset-4">
+            Réessayer
+          </button>
+        </div>
+      ) : visible.length > 0 ? (
+        <>
+          <div className="rounded-[var(--radius)] border border-sand">
+            <Table className="font-sans text-cocoa">
+              <TableHeader>
+                <TableRow className="border-sand hover:bg-transparent">
+                  <TableHead className="w-12 px-4 text-right text-taupe">#</TableHead>
+                  <TableHead className="px-4 text-taupe">Produit</TableHead>
+                  <TableHead className="px-4 text-taupe">Catégorie</TableHead>
+                  <TableHead className="px-4 text-right text-taupe">Prix</TableHead>
+                  <TableHead className="px-4 text-taupe">Reste en stock</TableHead>
+                  <TableHead className="px-4 text-center text-taupe">Visible</TableHead>
+                  <TableHead className="px-4" />
                 </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
-      </div>
-      <AdminPager page={currentPage} pageCount={pageCount} onPageChange={setPage} />
-      {filtered.length === 0 && (
-        <p className="text-center font-serif text-lg text-cocoa">Aucun produit ne correspond à votre recherche.</p>
+              </TableHeader>
+              <TableBody>
+                {visible.map((product, index) => {
+                  const discount = getDiscountPercent(product);
+                  const href = `/admin/boutique/produits/${encodeURIComponent(product.id)}`;
+                  return (
+                    <TableRow key={product.id} className="border-sand hover:bg-transparent">
+                      <TableCell className="px-4 py-3 text-right align-middle text-taupe tabular-nums">
+                        {(currentPage - 1) * ADMIN_PAGE_SIZE + index + 1}
+                      </TableCell>
+                      <TableCell className="px-4 py-3 align-middle">
+                        <div className="flex items-center gap-3">
+                          <div className="relative aspect-[4/5] w-10 shrink-0 overflow-hidden rounded-md bg-sand">
+                            <ProductVisual product={product} sizes="40px" iconClassName="size-4" />
+                          </div>
+                          <Link
+                            href={href}
+                            className={cn("min-w-0 underline-offset-4 hover:underline", product.hidden && "text-taupe line-through")}
+                          >
+                            {product.name}
+                          </Link>
+                        </div>
+                      </TableCell>
+                      <TableCell className="px-4 py-3 align-middle">
+                        {categoryNames.has(product.categoryId) ? (
+                          <button
+                            type="button"
+                            onClick={() => resetPage(setCategoryId)(product.categoryId)}
+                            title="Afficher les produits de cette catégorie"
+                            className="text-sm whitespace-nowrap underline-offset-4 hover:underline"
+                          >
+                            {categoryNames.get(product.categoryId)}
+                          </button>
+                        ) : (
+                          <span className="text-xs text-taupe">{product.categoryId}</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="px-4 py-3 text-right align-middle whitespace-nowrap">
+                        <p>{formatPrice(product.price)}</p>
+                        {discount !== null && (
+                          <p className="text-xs text-taupe">
+                            <s>{formatPrice(product.compareAtPrice!)}</s> · -{discount}%
+                          </p>
+                        )}
+                      </TableCell>
+                      <TableCell className="px-4 py-3 align-middle">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="tabular-nums">{product.totalStock}</span>
+                          <StockBadge level={product.level} />
+                        </div>
+                        {product.variants.length > 0 && (
+                          <ul className="mt-1 flex max-w-64 flex-wrap gap-x-3 text-xs text-taupe">
+                            {product.variants.map((v) => (
+                              <li key={v.id} className={cn(v.level !== "ok" && "text-cocoa")}>
+                                {v.name} : {v.stock}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </TableCell>
+                      <TableCell className="px-4 py-3 text-center align-middle">
+                        <input
+                          type="checkbox"
+                          checked={!product.hidden}
+                          disabled={toggling.includes(product.id)}
+                          onChange={() => void toggleHidden(product)}
+                          aria-label={`${product.name} visible en boutique`}
+                          className="size-4 accent-cocoa"
+                        />
+                      </TableCell>
+                      <TableCell className="px-4 py-3 align-middle">
+                        <div className="flex items-center justify-end gap-1">
+                          <Link href={href} aria-label={`Voir ${product.name}`} title="Voir la fiche" className={iconButtonClassName}>
+                            <Eye className="size-4" strokeWidth={1.75} />
+                          </Link>
+                          <Link
+                            href={`${href}/modifier`}
+                            aria-label={`Modifier ${product.name}`}
+                            title="Modifier"
+                            className={iconButtonClassName}
+                          >
+                            <Pencil className="size-4" strokeWidth={1.75} />
+                          </Link>
+                          <DeleteProduct product={product} />
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+          <AdminPager page={currentPage} pageCount={pageCount} onPageChange={setPageNumber} />
+        </>
+      ) : (
+        <p className="text-center font-serif text-lg text-cocoa">
+          {summary?.total === 0
+            ? "Aucun produit pour le moment : ajoutez le premier."
+            : "Aucun produit ne correspond à votre recherche."}
+        </p>
       )}
     </div>
   );

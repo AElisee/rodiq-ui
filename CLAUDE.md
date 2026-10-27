@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Projet
 
 Front Next.js de RODIQ (salon d'onglerie + boutique), en français. L'authentification (clients et admin), les
-réglages, la carte des prestations et les réservations passent par l'API ; les autres données sont encore une **maquette** dans des stores zustand
+réglages, la carte des prestations, les réservations et la boutique passent par l'API ; les autres données sont encore une **maquette** dans des stores zustand
 persistés dans le `localStorage`. L'API
 (NestJS + TypeORM + MariaDB, dépôt séparé `../api-rodiq`) est spécifiée dans `docs/backend.md` et son
 installation dans `docs/installation-backend.md`.
@@ -42,15 +42,18 @@ layout/page utilisent les types globaux générés (`LayoutProps<"/">`, `PagePro
   `cancellationDeadline`) et références sont calculés par l'API, jamais par le navigateur. `lib/demo-data.ts` génère des données de démonstration déterministes pour l'admin.
 - `lib/api/` : **seule couche qui parle à l'API**. `client.ts` (URL `NEXT_PUBLIC_API_URL`, cookies
   `credentials: "include"`, `ApiError`, `errorMessage` pour les toasts), `endpoints.ts` (tous les chemins),
-  un service par ressource (`auth.ts`, `parametres.ts`, `prestations.ts`, `reservations.ts`) qui traduit les DTO de l'API (noms français) vers les
+  un service par ressource (`auth.ts`, `parametres.ts`, `prestations.ts`, `reservations.ts`, `boutique.ts`) qui traduit les DTO de l'API (noms français) vers les
   types du front. Les composants n'appellent jamais l'API : ils passent par les stores.
 - `lib/stores/` : **un store = une ressource d'API**. `auth-store`, `admin-store`, `settings-store`,
   `prestations-store`, `reservation-store` (réservations du compte connecté, `useMyReservations`), `slots-store`
-  (créneaux) et `admin-reservations-store` (liste paginée côté serveur, fiche, actions, pastille, tableau de
-  bord) sont alimentés par `lib/api/` (non persistés ; hook `use…Hydrated` créé par `createLoadHook` de `remote.ts`, qui
+  (créneaux), `admin-reservations-store` (liste paginée côté serveur, fiche, actions, pastille, tableau de
+  bord), `shop-store` (boutique vue par le site : catégories, page de produits, produits lus un par un pour la
+  fiche, le panier et la commande) et `admin-boutique-store` (catégories, liste paginée, fiches, photos,
+  compteurs) sont alimentés par `lib/api/` (non persistés ; hook `use…Hydrated` créé par `createLoadHook` de `remote.ts`, qui
   lance le chargement) ; leurs actions sont asynchrones et lèvent une `ApiError` en cas d'échec. Le site et l'admin lisent et écrivent les
-  mêmes stores (`prestations`, `catalog`, `order`, `settings`, `auth`, `admin`, `visit`), sauf les réservations
-  (`reservation-store` côté site, `admin-reservations-store` côté admin) ; `cart` et
+  mêmes stores (`prestations`, `order`, `settings`, `auth`, `admin`, `visit`), sauf les réservations
+  (`reservation-store` côté site, `admin-reservations-store` côté admin) et la boutique (`shop-store` /
+  `admin-boutique-store` : le site ne reçoit jamais le stock exact ni les produits masqués) ; `cart` et
   `booking` restent côté navigateur. La table store → endpoint est dans `docs/backend.md` : la tenir à
   jour quand on ajoute une action de store.
 - Les stores persistés sont en hydratation manuelle (`skipHydration`) : utiliser le hook
@@ -61,8 +64,9 @@ layout/page utilisent les types globaux générés (`LayoutProps<"/">`, `PagePro
   (« « Mains » n'a pas été supprimée »), description = `errorMessage(error)` (message de l'API, ou cause
   réseau / serveur / navigateur). Jamais de toast de succès avant la réponse de l'API, jamais une liste vide à la
   place d'une lecture échouée.
-- Le catalogue produits fusionne les produits de `lib/produits.ts` avec `productOverrides`,
-  `customProducts` et `removedProductIds` du `catalog-store`.
+- Boutique : photos servies par l'API (`apiFileUrl` préfixe les chemins `/api/boutique/photos/…`), réduites
+  dans le navigateur sous 600 Ko (`lib/images.ts`) avant l'envoi ; envoyées avec le produit à sa création,
+  ensuite une par une depuis la fiche admin. Les commandes restent une maquette : elles ne touchent pas au stock.
 - Validation des formulaires : react-hook-form + zod (`lib/validation.ts`, `components/forms/form-fields.tsx`).
 - Comptes : gérés par l'API (admin créé depuis `ADMIN_EMAIL` / `ADMIN_PASSWORD` de `../api-rodiq/.env`).
   L'écran Clientèle affiche encore `demoClientAccounts` (pas de route de liste des comptes).

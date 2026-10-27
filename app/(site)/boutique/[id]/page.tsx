@@ -1,25 +1,15 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import bannerImage from "@/public/images/boutique.jpg";
-import { getCategory, getProduct, products } from "@/lib/produits";
 import { ProductDetail } from "./_components/product-detail";
 import { RelatedProducts } from "./_components/related-products";
 
-// Fiches du catalogue générées au build ; les produits ajoutés depuis l'admin sont lus dans le navigateur
-export const generateStaticParams = () => products.map((product) => ({ id: product.id }));
-
-export const generateMetadata = async ({
-  params,
-}: PageProps<"/boutique/[id]">): Promise<Metadata> => {
-  const { id } = await params;
-  const product = getProduct(id);
-  if (!product) return { title: "Boutique" };
-
-  return {
-    title: product.name,
-    description: product.description ?? getCategory(product.categoryId)?.description,
-  };
+export const metadata: Metadata = {
+  title: "Boutique",
 };
+
+// Produits gérés depuis l'admin et lus depuis l'API par le navigateur : rendu à la demande
+export const instant = false;
 
 const ProductPage = async ({ params }: PageProps<"/boutique/[id]">) => {
   const { id } = await params;
@@ -46,7 +36,7 @@ const ProductPage = async ({ params }: PageProps<"/boutique/[id]">) => {
 
       <section className="w-full bg-pearl px-4 py-12 md:px-8 md:py-16 lg:py-20">
         <div className="mx-auto w-full max-w-6xl">
-          {/* Nom, prix, déclinaisons et stock modifiables depuis l'admin : rendu côté navigateur */}
+          {/* Nom, prix, déclinaisons et disponibilité lus depuis l'API : rendu côté navigateur */}
           <ProductDetail id={id} />
         </div>
       </section>

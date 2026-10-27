@@ -33,6 +33,23 @@ export const endpoints = {
     creation: "/admin/prestations",
     prestation: (id: string) => `/admin/prestations/${encodeURIComponent(id)}`,
   },
+  boutique: {
+    categories: "/boutique/categories",
+    produits: "/boutique/produits",
+    produit: (id: string) => `/boutique/produits/${encodeURIComponent(id)}`,
+    admin: {
+      categories: "/admin/boutique/categories",
+      categorie: (id: string) => `/admin/boutique/categories/${encodeURIComponent(id)}`,
+      ordreCategories: "/admin/boutique/categories/ordre",
+      produits: "/admin/boutique/produits",
+      produit: (id: string) => `/admin/boutique/produits/${encodeURIComponent(id)}`,
+      photos: (id: string) => `/admin/boutique/produits/${encodeURIComponent(id)}/photos`,
+      ordrePhotos: (id: string) => `/admin/boutique/produits/${encodeURIComponent(id)}/photos/ordre`,
+      photo: (id: string, photoId: string) =>
+        `/admin/boutique/produits/${encodeURIComponent(id)}/photos/${encodeURIComponent(photoId)}`,
+      alertesStock: "/admin/boutique/alertes-stock",
+    },
+  },
   reservations: {
     creneaux: "/creneaux",
     creation: "/reservations",

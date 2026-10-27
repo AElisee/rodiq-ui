@@ -11,7 +11,8 @@ un store par des appels API branche les deux côtés d'un coup.
 | `auth-store` (**branché sur l'API**)      | session client         | connexion, inscription, réservation, commande    | lecture seule (Clientèle)                  |
 | `admin-store` (**branché sur l'API**)     | session admin          | —                                                | connexion `/admin/connexion`               |
 | `prestations-store` (**branché sur l'API**) | `prestations`        | prestations, réservation, mes réservations       | Prestations › Catalogue prestations, Prestations › Catégories |
-| `catalog-store` (`rodiq-catalog`)         | `product-categories`, `products` | boutique, panier                     | Boutique › Produits, Boutique › Catégories |
+| `shop-store` (**branché sur l'API**)      | `boutique/*`           | boutique, fiche produit, panier, commande        | —                                          |
+| `admin-boutique-store` (**branché sur l'API**) | `admin/boutique/*` | —                                              | Boutique › Produits, Boutique › Catégories, fiche commande |
 | `reservation-store` (**branché sur l'API**) | `me/reservations`, `reservations` | réservation, mes réservations (compte connecté) | —                                  |
 | `slots-store` (**branché sur l'API**)     | `creneaux`             | réservation (créneaux et places libres)          | —                                          |
 | `admin-reservations-store` (**branché sur l'API**) | `admin/reservations` | —                                       | Réservations, fiche, pastille du menu, tableau de bord, Clientèle |
@@ -112,6 +113,42 @@ prestation : slug + 4 caractères aléatoires).
 - Les actions `move…` du store (décalage -1 / +1) calculent la liste complète et l'envoient ; un ordre qui
   n'est pas une permutation des identifiants existants est refusé (**400**). Les catégories de départ
   (`prestationCategories` de `lib/prestations.ts`) ne sont pas créées automatiquement : à saisir depuis l'admin.
+Boutique : implémenté dans `api-rodiq/src/boutique/`, branché via `lib/api/boutique.ts` et deux stores.
+`shop-store` (site) : `loadCategories` ← `GET /boutique/categories`, `loadPage` ← liste filtrée et paginée
+(`/boutique`), `loadProduct` ← `GET /boutique/produits/:id` (fiche, et chaque produit du panier, de la commande
+et de « commander à nouveau », relu à l'affichage ; 404 = produit retiré ou masqué, la ligne disparaît),
+`loadRelated` ← `?categorie=&sauf=&parPage=4`. `admin-boutique-store` (admin) : `loadCategories` (admin + public,
+pour « affichée / masquée en boutique »), `saveCategory`, `removeCategory`, `moveCategory`, `loadPage`,
+`fetchMatching` (export, toutes les pages), `loadSummary` (compteurs : total, masqués, produits en alerte via
+`alertes-stock`), `loadDetail`, `createProduct` (photos jointes, `photosRefusees` affichées dans le toast),
+`updateProduct` (avec la `version` lue ; un 409 relit la fiche et remonte le formulaire), `setHidden`,
+`removeProduct`, `addPhoto`, `removePhoto`, `movePhotoFirst` (`PUT …/photos/ordre`). Un refus 400 / 404 / 409
+relit la fiche et les listes. Le filtre « Stock » de l'admin suit les niveaux de l'API (`ok`, `faible`, `epuise`).
+Noms de champs : catégorie `{ id, nom, description }` ; produit `{ id, categorieId, nom, prix, prixBarre,
+description, contenance, poids, photos, declinaisons }` (`prixBarre` = l'ancien `compareAtPrice`, `photos` =
+chemins `/api/boutique/photos/<uuid>` à préfixer par l'origine de l'API). Le site ne reçoit **jamais le stock
+exact** : `quantiteMax` (stock plafonné à 10, par produit et par déclinaison) et `epuise` ; l'admin reçoit
+`stock`, `stockTotal`, `niveauStock`, `seuilStockFaible`, `masque`, `photoIds` et `version`.
+
+- Site (public) : `GET /boutique/categories` (seulement celles qui ont un produit visible),
+  `GET /boutique/produits?categorie=&q=&tri=defaut|prix-asc|prix-desc&page=&parPage=` (≤ 48 ; `sauf=<id>` pour
+  les produits associés), `GET /boutique/produits/:id` (**404** si masqué), `GET /boutique/photos/:id`.
+- Admin catégories : `GET /admin/boutique/categories` (avec `nombreProduits`), `POST` et
+  `PUT /admin/boutique/categories/:id` ← `saveProductCategory` (**409** nom pris), `DELETE …/:id` ←
+  `removeProductCategory` (**409** si elle a des produits, masqués compris), `PUT /admin/boutique/categories/ordre`
+  (`{ ids }`) ← `moveProductCategory`. Chaque écriture renvoie toute la liste.
+- Admin produits : `GET /admin/boutique/produits?categorie=&q=&stock=ok|faible|epuise&visibilite=visibles|masques&tri=&page=&parPage=`,
+  `GET …/:id`, `POST /admin/boutique/produits` (`photos` facultatif : 0 à 4 data URL ; le produit est créé
+  même si des photos sont refusées, listées dans `photosRefusees` de la réponse — à afficher dans le toast ;
+  corps jusqu'à 4 Mo) et `PUT …/:id` (sans `photos`) ←
+  `saveProduct` (le `PUT` exige la `version` lue :
+  **409** si le produit a changé entre-temps ; déclinaisons existantes désignées par leur `id`), `DELETE …/:id`
+  (204) ← `removeProduct`, photos : `POST …/:id/photos` (`{ image }` en data URL JPEG/PNG/WebP, 600 Ko, 4 au
+  plus), `PUT …/:id/photos/ordre`, `DELETE …/:id/photos/:photoId`. `GET /admin/boutique/alertes-stock` ←
+  tableau de bord et pastille. `resetProduct` disparaît.
+
+Spécification d'origine (remplacée par ce qui précède) :
+
 - `GET /product-categories` (dans l'ordre d'affichage) · admin : `POST /admin/product-categories` et
   `PUT /admin/product-categories/:id` ← `saveProductCategory`, `DELETE /admin/product-categories/:id` ←
   `removeProductCategory`, `PUT /admin/product-categories/order` (liste des identifiants) ←

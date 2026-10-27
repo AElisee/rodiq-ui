@@ -1,19 +1,19 @@
 import Image from "next/image";
 import { Gem } from "lucide-react";
-import type { Product, ProductImage } from "@/lib/produits";
+import type { Product } from "@/lib/produits";
 import { cn } from "@/lib/utils";
 
 type ProductVisualProps = {
-  product: Product;
+  product: Pick<Product, "name" | "images">;
   sizes: string;
   // Photo à afficher (galerie de la fiche produit) ; par défaut la photo principale
-  image?: ProductImage;
+  image?: string;
   alt?: string;
   preload?: boolean;
   iconClassName?: string;
 };
 
-// Photo du produit, ou visuel provisoire tant que la photo n'est pas fournie
+// Photo du produit, ou visuel provisoire tant qu'aucune photo n'est ajoutée
 export const ProductVisual = ({
   product,
   sizes,
@@ -28,9 +28,8 @@ export const ProductVisual = ({
       alt={alt}
       fill
       preload={preload}
-      // Photos ajoutées depuis l'admin (data URL) : ni optimisation ni aperçu flou
-      placeholder={typeof image === "string" ? "empty" : "blur"}
-      unoptimized={typeof image === "string"}
+      // Photo servie par l'API (ou data URL avant envoi) : déjà réduite à l'ajout, sans optimisation Next
+      unoptimized
       sizes={sizes}
       className="object-cover transition-transform duration-500 hover:scale-105"
     />

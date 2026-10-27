@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { formatPrice } from "@/lib/prestations";
 import {
   VARIANT_LABEL,
@@ -12,7 +12,7 @@ import {
   productStock,
   stockLevel,
 } from "@/lib/produits";
-import { useCatalogHydrated, useCatalogProduct, useProductCategories } from "@/lib/stores/catalog-store";
+import { useShopCategories, useShopProduct } from "@/lib/stores/shop-store";
 import { cn } from "@/lib/utils";
 import { AddToCart } from "./add-to-cart";
 import { ProductGallery } from "./product-gallery";
@@ -46,43 +46,61 @@ const Breadcrumb = ({ category, name }: { category?: ProductCategory; name?: str
   </nav>
 );
 
-// Fil d'Ariane, photos, prix, déclinaisons et ajout au panier, avec les modifications de l'admin
+const Unavailable = ({ children }: { children: ReactNode }) => (
+  <>
+    <Breadcrumb />
+    <div className="flex flex-col items-center py-20 text-center">{children}</div>
+  </>
+);
+
+const shopLinkClassName =
+  "mt-10 inline-flex h-14 items-center justify-center rounded-full bg-blush px-10 font-sans text-base text-cocoa transition-colors hover:bg-sand";
+
+// Fil d'Ariane, photos, prix, déclinaisons et ajout au panier, lus depuis l'API
 export const ProductDetail = ({ id }: { id: string }) => {
-  const hydrated = useCatalogHydrated();
-  const product = useCatalogProduct(id);
-  const categories = useProductCategories();
+  const { product, error, retry } = useShopProduct(id);
+  const categories = useShopCategories();
   const variants = product?.variants ?? [];
   // Première déclinaison disponible choisie par défaut
   const [variantId, setVariantId] = useState<string>();
   const selectedId = variantId ?? (variants.find((v) => v.stock > 0) ?? variants[0])?.id;
 
-  // Produit ajouté depuis l'admin : connu seulement une fois le catalogue relu
-  if (!product && !hydrated) return <div className="min-h-96" aria-hidden />;
-
-  if (!product || product.hidden) {
+  // Produit supprimé ou masqué depuis l'admin
+  if (error?.status === 404) {
     return (
-      <>
-        <Breadcrumb />
-        <div className="flex flex-col items-center py-20 text-center">
-          <p className="font-serif text-[clamp(1.25rem,2vw,1.75rem)] text-cocoa">
-            Ce produit n&apos;est plus disponible en boutique.
-          </p>
-          <Link
-            href="/boutique"
-            className="mt-10 inline-flex h-14 items-center justify-center rounded-full bg-blush px-10 font-sans text-base text-cocoa transition-colors hover:bg-sand"
-          >
-            Découvrir la boutique
-          </Link>
-        </div>
-      </>
+      <Unavailable>
+        <p className="font-serif text-[clamp(1.25rem,2vw,1.75rem)] text-cocoa">
+          Ce produit n&apos;est plus disponible en boutique.
+        </p>
+        <Link href="/boutique" className={shopLinkClassName}>
+          Découvrir la boutique
+        </Link>
+      </Unavailable>
     );
   }
+
+  if (error && !product) {
+    return (
+      <Unavailable>
+        <p role="alert" className="font-serif text-[clamp(1.25rem,2vw,1.75rem)] text-cocoa">
+          Ce produit n&apos;a pas pu être chargé.
+        </p>
+        <p className="mt-3 max-w-md font-sans text-sm text-taupe">{error.message}</p>
+        <button type="button" onClick={() => void retry()} className={shopLinkClassName}>
+          Réessayer
+        </button>
+      </Unavailable>
+    );
+  }
+
+  if (!product) return <div className="min-h-96" aria-hidden />;
 
   const category = categories.find((c) => c.id === product.categoryId);
   const discount = getDiscountPercent(product);
   const variant = variants.find((v) => v.id === selectedId);
   const stock = productStock(product, variant?.id);
-  const lowStock = stockLevel(stock, product.lowStockThreshold) === "faible";
+  // Quantité plafonnée par l'API : « plus que N » seulement sous le seuil d'alerte par défaut
+  const lowStock = stockLevel(stock) === "faible";
   const measures = productMeasures(product);
 
   return (
