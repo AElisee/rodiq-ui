@@ -4,7 +4,7 @@ import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { Search } from "lucide-react";
 import Link from "next/link";
-import { useDeferredValue, useState } from "react";
+import { useDeferredValue, useEffect, useState } from "react";
 import {
   ADMIN_PAGE_SIZE,
   AdminPageHeader,
@@ -13,9 +13,8 @@ import {
   OrderStatusBadge,
   StatusBadge,
   adminInputClassName,
-  normalizeSearch,
 } from "@/components/admin/admin-ui";
-import { AdminExportButtons, type ExportTable } from "@/components/admin/admin-export";
+import { AdminExportButtons } from "@/components/admin/admin-export";
 import {
   Dialog,
   DialogContent,
@@ -24,17 +23,12 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { orderItemCount, orderTotal, type Order } from "@/lib/commandes";
+import type { AccountsQuery, AccountsSort, ClientAccount } from "@/lib/api/comptes";
 import { formatPrice } from "@/lib/prestations";
-import { formatDay, formatSlotTime, reservationTotal, type Reservation } from "@/lib/reservations";
-import { demoClientAccounts } from "@/lib/demo-data";
-import type { Account } from "@/lib/stores/auth-store";
-import { useAdminOrdersStore, useAllOrdersLoaded } from "@/lib/stores/admin-orders-store";
-import { useAdminReservationsStore, useAllReservationsLoaded } from "@/lib/stores/admin-reservations-store";
+import { formatDay, formatSlotTime } from "@/lib/reservations";
+import { useAdminAccountsStore } from "@/lib/stores/admin-accounts-store";
 
-type SortOrder = "recentes" | "nom" | "reservations" | "commandes" | "depenses";
-
-const sortOptions: { value: SortOrder; label: string }[] = [
+const sortOptions: { value: AccountsSort; label: string }[] = [
   { value: "recentes", label: "Inscription récente" },
   { value: "nom", label: "Nom" },
   { value: "reservations", label: "Nombre de réservations" },
@@ -47,41 +41,68 @@ const formatDate = (iso: string) => format(new Date(iso), "d MMM yyyy", { locale
 const historyTitleClassName = "mt-6 font-serif text-lg";
 const historyLinkClassName = "underline-offset-4 hover:underline";
 
-// Historique d'un compte : réservations et commandes, avec accès à leur fiche
-const AccountHistory = ({
-  account,
-  reservations,
-  orders,
-}: {
-  account: Account;
-  reservations: Reservation[];
-  orders: Order[];
-}) => (
-  <Dialog>
-    <DialogTrigger asChild>
-      <button type="button" className="font-sans text-xs text-cocoa underline underline-offset-4 hover:text-taupe">
-        Historique
-      </button>
-    </DialogTrigger>
-    <DialogContent className="max-h-[90svh] gap-0 overflow-y-auto rounded-[var(--radius)] bg-pearl p-6 font-sans text-cocoa sm:max-w-lg md:p-8">
-      <DialogTitle className="font-serif text-xl leading-tight font-normal">
-        {account.firstName} {account.lastName}
-      </DialogTitle>
-      <DialogDescription className="mt-1 text-sm text-taupe">
-        {account.email} · {account.phone}
-      </DialogDescription>
+const exportHeaders = [
+  "Prénom",
+  "Nom",
+  "E-mail",
+  "Téléphone",
+  "Inscription",
+  "Réservations",
+  "Dernier rendez-vous",
+  "Commandes",
+  "Dépenses estimées (FCFA)",
+];
 
+const exportRow = (a: ClientAccount) => [
+  a.firstName,
+  a.lastName,
+  a.email,
+  a.phone,
+  formatDate(a.createdAt),
+  a.reservationCount,
+  a.lastAppointment ? formatDate(`${a.lastAppointment}T00:00`) : "",
+  a.orderCount,
+  a.estimatedSpend,
+];
+
+// Historique complet d'un compte, lu à l'ouverture : réservations et commandes, avec accès à leur fiche
+const AccountHistoryContent = ({ id }: { id: string }) => {
+  const detail = useAdminAccountsStore((s) => s.details[id]);
+  const detailError = useAdminAccountsStore((s) => s.detailErrors[id]);
+  const loadDetail = useAdminAccountsStore((s) => s.loadDetail);
+
+  if (detailError && !detail)
+    return (
+      <div role="alert" className="mt-6 border-t border-sand pt-4 text-sm">
+        <p>L&apos;historique n&apos;a pas pu être chargé.</p>
+        <p className="mt-1 text-taupe">
+          {detailError.status === 404
+            ? "Ce compte est introuvable : il n'existe plus dans la base."
+            : detailError.message}
+        </p>
+        {detailError.status !== 404 && (
+          <button type="button" onClick={() => void loadDetail(id)} className="mt-3 underline underline-offset-4">
+            Réessayer
+          </button>
+        )}
+      </div>
+    );
+
+  if (!detail) return <div className="mt-6 min-h-40" aria-hidden />;
+
+  return (
+    <>
       <h3 className={historyTitleClassName}>Réservations</h3>
-      {reservations.length > 0 ? (
+      {detail.reservations.length > 0 ? (
         <ul className="mt-3 divide-y divide-sand border-t border-sand text-sm">
-          {reservations.map((r) => (
+          {detail.reservations.map((r) => (
             <li key={r.id} className="flex items-center justify-between gap-4 py-3">
               <div>
                 <Link href={`/admin/reservations/${r.id}`} className={historyLinkClassName}>
                   <span className="inline-block first-letter:uppercase">{formatDay(r.date)}</span>
                 </Link>
                 <p className="text-xs text-taupe">
-                  {formatSlotTime(r.start, r.end)} · {r.reference}
+                  {formatSlotTime(r.start, r.end)} · {r.reference} · {formatPrice(r.total, r.totalFrom)}
                 </p>
               </div>
               <StatusBadge status={r.status} />
@@ -93,112 +114,101 @@ const AccountHistory = ({
       )}
 
       <h3 className={historyTitleClassName}>Commandes</h3>
-      {orders.length > 0 ? (
+      {detail.orders.length > 0 ? (
         <ul className="mt-3 divide-y divide-sand border-t border-sand text-sm">
-          {orders.map((o) => {
-            const count = orderItemCount(o);
-            return (
-              <li key={o.id} className="flex items-center justify-between gap-4 py-3">
-                <div>
-                  <Link href={`/admin/commandes/${o.id}`} className={historyLinkClassName}>
-                    {o.reference}
-                  </Link>
-                  <p className="text-xs text-taupe">
-                    {formatDate(o.createdAt)} · {count} article{count > 1 && "s"} · {formatPrice(orderTotal(o))}
-                  </p>
-                </div>
-                <OrderStatusBadge order={o} />
-              </li>
-            );
-          })}
+          {detail.orders.map((o) => (
+            <li key={o.id} className="flex items-center justify-between gap-4 py-3">
+              <div>
+                <Link href={`/admin/commandes/${o.id}`} className={historyLinkClassName}>
+                  {o.reference}
+                </Link>
+                <p className="text-xs text-taupe">
+                  {formatDate(o.createdAt)} · {o.itemCount} article{o.itemCount > 1 && "s"} · {formatPrice(o.total)}
+                </p>
+              </div>
+              <OrderStatusBadge order={o} />
+            </li>
+          ))}
         </ul>
       ) : (
         <p className="mt-3 border-t border-sand pt-3 text-sm text-taupe">Aucune commande pour le moment.</p>
       )}
-    </DialogContent>
-  </Dialog>
-);
+    </>
+  );
+};
 
-// Comptes clients avec leur activité (réservations, commandes, dépenses)
+const AccountHistory = ({ account }: { account: ClientAccount }) => {
+  const loadDetail = useAdminAccountsStore((s) => s.loadDetail);
+
+  return (
+    <Dialog
+      onOpenChange={(open) => {
+        // Relu à chaque ouverture : l'activité a pu changer depuis la dernière lecture
+        if (open) void loadDetail(account.id);
+      }}
+    >
+      <DialogTrigger asChild>
+        <button type="button" className="font-sans text-xs text-cocoa underline underline-offset-4 hover:text-taupe">
+          Historique
+        </button>
+      </DialogTrigger>
+      <DialogContent className="max-h-[90svh] gap-0 overflow-y-auto rounded-[var(--radius)] bg-pearl p-6 font-sans text-cocoa sm:max-w-lg md:p-8">
+        <DialogTitle className="font-serif text-xl leading-tight font-normal">
+          {account.firstName} {account.lastName}
+        </DialogTitle>
+        <DialogDescription className="mt-1 text-sm text-taupe">
+          {account.email} · {account.phone}
+        </DialogDescription>
+        <AccountHistoryContent id={account.id} />
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+// Comptes clients avec leur activité (réservations, commandes, dépenses) : recherche, tri et pagination
+// faits par l'API
 export const UsersList = () => {
-  const reservationsHydrated = useAllReservationsLoaded();
-  const ordersHydrated = useAllOrdersLoaded();
-  // Comptes de démonstration en attendant une route API qui liste les comptes (GET /admin/comptes)
-  const accounts = demoClientAccounts;
-  const reservations = useAdminReservationsStore((s) => s.all);
-  const orders = useAdminOrdersStore((s) => s.all);
+  const page = useAdminAccountsStore((s) => s.page);
+  const pageError = useAdminAccountsStore((s) => s.pageError);
+  const loadPage = useAdminAccountsStore((s) => s.loadPage);
+  const fetchMatching = useAdminAccountsStore((s) => s.fetchMatching);
   const [query, setQuery] = useState("");
-  const [sort, setSort] = useState<SortOrder>("recentes");
-  const [page, setPage] = useState(1);
-  const search = normalizeSearch(useDeferredValue(query));
+  const [sort, setSort] = useState<AccountsSort>("recentes");
+  const [pageNumber, setPageNumber] = useState(1);
+  const search = useDeferredValue(query);
 
-  if (!reservationsHydrated || !ordersHydrated) return <div className="min-h-96" aria-hidden />;
+  const filters: AccountsQuery = { search, sort, page: pageNumber, pageSize: ADMIN_PAGE_SIZE };
+  const filtersKey = JSON.stringify(filters);
 
-  const rows = accounts
-    .map((account) => {
-      const own = reservations
-        .filter((r) => r.accountId === account.id)
-        .toSorted((a, b) => `${b.date} ${b.start}`.localeCompare(`${a.date} ${a.start}`));
-      const ownOrders = orders
-        .filter((o) => o.accountId === account.id)
-        .toSorted((a, b) => b.createdAt.localeCompare(a.createdAt));
-      // Soins terminés (montant estimé) + commandes remises
-      const spent =
-        own.filter((r) => r.status === "terminee").reduce((sum, r) => sum + reservationTotal(r), 0) +
-        ownOrders.filter((o) => o.status === "livree").reduce((sum, o) => sum + orderTotal(o), 0);
-      return { account, reservations: own, orders: ownOrders, spent };
-    })
-    .filter(
-      ({ account }) =>
-        !search ||
-        normalizeSearch(`${account.firstName} ${account.lastName} ${account.email} ${account.phone}`).includes(search),
-    )
-    .toSorted((a, b) => {
-      if (sort === "nom") return `${a.account.lastName} ${a.account.firstName}`.localeCompare(`${b.account.lastName} ${b.account.firstName}`, "fr");
-      if (sort === "reservations") return b.reservations.length - a.reservations.length;
-      if (sort === "commandes") return b.orders.length - a.orders.length;
-      if (sort === "depenses") return b.spent - a.spent;
-      return b.account.createdAt.localeCompare(a.account.createdAt);
-    });
+  useEffect(() => {
+    void loadPage(JSON.parse(filtersKey) as AccountsQuery);
+  }, [filtersKey, loadPage]);
 
-  const pageCount = Math.ceil(rows.length / ADMIN_PAGE_SIZE);
-  const currentPage = Math.min(page, Math.max(pageCount, 1));
-  const visible = rows.slice((currentPage - 1) * ADMIN_PAGE_SIZE, currentPage * ADMIN_PAGE_SIZE);
+  if (!page && !pageError) return <div className="min-h-96" aria-hidden />;
 
-  const exportTable: ExportTable = {
+  const total = page?.total ?? 0;
+  const pageCount = Math.ceil(total / ADMIN_PAGE_SIZE);
+  const currentPage = page?.page ?? pageNumber;
+  const visible = page?.accounts ?? [];
+
+  const loadExport = async () => ({
     title: "Clientèle",
     filename: "clientele",
-    headers: [
-      "Prénom",
-      "Nom",
-      "E-mail",
-      "Téléphone",
-      "Inscription",
-      "Réservations",
-      "Dernier rendez-vous",
-      "Commandes",
-      "Dépenses estimées (FCFA)",
-    ],
-    rows: rows.map(({ account, reservations: own, orders: ownOrders, spent }) => [
-      account.firstName,
-      account.lastName,
-      account.email,
-      account.phone,
-      formatDate(account.createdAt),
-      own.length,
-      own[0] ? formatDate(`${own[0].date}T00:00`) : "",
-      ownOrders.length,
-      spent,
-    ]),
-  };
+    headers: exportHeaders,
+    rows: (await fetchMatching({ search, sort })).map(exportRow),
+  });
 
   return (
     <div className="flex flex-col gap-6">
       <AdminPageHeader
         title="Clientèle"
-        description={`${accounts.length} compte${accounts.length > 1 ? "s" : ""} client${accounts.length > 1 ? "s" : ""}`}
+        description={
+          page
+            ? `${total} compte${total > 1 ? "s" : ""} client${total > 1 ? "s" : ""}${search.trim() ? " pour cette recherche" : ""}`
+            : "Comptes clients et leur activité"
+        }
       >
-        <AdminExportButtons table={exportTable} />
+        <AdminExportButtons count={total} load={loadExport} />
       </AdminPageHeader>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -209,7 +219,7 @@ export const UsersList = () => {
             value={query}
             onChange={(e) => {
               setQuery(e.target.value);
-              setPage(1);
+              setPageNumber(1);
             }}
             placeholder="Nom, e-mail ou téléphone"
             aria-label="Rechercher un compte client"
@@ -221,14 +231,25 @@ export const UsersList = () => {
           <AdminSelect
             label="Trier par"
             value={sort}
-            onValueChange={setSort}
+            onValueChange={(value) => {
+              setSort(value);
+              setPageNumber(1);
+            }}
             options={sortOptions}
             className="sm:w-56"
           />
         </div>
       </div>
 
-      {visible.length > 0 ? (
+      {pageError ? (
+        <div role="alert" className="rounded-[var(--radius)] border border-sand p-6 font-sans text-sm text-cocoa">
+          <p className="font-serif text-lg">Les comptes clients n&apos;ont pas pu être chargés.</p>
+          <p className="mt-2 text-taupe">{pageError}</p>
+          <button type="button" onClick={() => void loadPage(filters)} className="mt-4 underline underline-offset-4">
+            Réessayer
+          </button>
+        </div>
+      ) : visible.length > 0 ? (
         <>
           <div className="rounded-[var(--radius)] border border-sand">
             <Table className="font-sans text-cocoa">
@@ -246,7 +267,7 @@ export const UsersList = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {visible.map(({ account, reservations: own, orders: ownOrders, spent }, index) => (
+                {visible.map((account, index) => (
                   <TableRow key={account.id} className="border-sand hover:bg-transparent">
                     <TableCell className="px-4 py-3 text-right align-top text-taupe tabular-nums">{(currentPage - 1) * ADMIN_PAGE_SIZE + index + 1}</TableCell>
                     <TableCell className="px-4 py-3">
@@ -257,29 +278,29 @@ export const UsersList = () => {
                       <p className="text-xs text-taupe">{account.phone}</p>
                     </TableCell>
                     <TableCell className="px-4 py-3">{formatDate(account.createdAt)}</TableCell>
-                    <TableCell className="px-4 py-3 text-right tabular-nums">{own.length}</TableCell>
+                    <TableCell className="px-4 py-3 text-right tabular-nums">{account.reservationCount}</TableCell>
                     <TableCell className="px-4 py-3">
-                      {own[0] ? (
-                        <span className="first-letter:uppercase">{formatDate(`${own[0].date}T00:00`)}</span>
+                      {account.lastAppointment ? (
+                        <span className="first-letter:uppercase">{formatDate(`${account.lastAppointment}T00:00`)}</span>
                       ) : (
                         <span className="text-taupe">—</span>
                       )}
                     </TableCell>
-                    <TableCell className="px-4 py-3 text-right tabular-nums">{ownOrders.length}</TableCell>
-                    <TableCell className="px-4 py-3 text-right whitespace-nowrap">{formatPrice(spent)}</TableCell>
+                    <TableCell className="px-4 py-3 text-right tabular-nums">{account.orderCount}</TableCell>
+                    <TableCell className="px-4 py-3 text-right whitespace-nowrap">{formatPrice(account.estimatedSpend)}</TableCell>
                     <TableCell className="px-4 py-3 text-right">
-                      <AccountHistory account={account} reservations={own} orders={ownOrders} />
+                      <AccountHistory account={account} />
                     </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
           </div>
-          <AdminPager page={currentPage} pageCount={pageCount} onPageChange={setPage} />
+          <AdminPager page={currentPage} pageCount={pageCount} onPageChange={setPageNumber} />
         </>
       ) : (
         <p className="rounded-[var(--radius)] border border-sand py-16 text-center font-serif text-lg text-cocoa">
-          Aucun compte ne correspond à votre recherche.
+          {search.trim() ? "Aucun compte ne correspond à votre recherche." : "Aucun compte client pour le moment."}
         </p>
       )}
     </div>

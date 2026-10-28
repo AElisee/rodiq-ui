@@ -15,9 +15,10 @@ un store par des appels API branche les deux côtés d'un coup.
 | `admin-boutique-store` (**branché sur l'API**) | `admin/boutique/*` | —                                              | Boutique › Produits, Boutique › Catégories, fiche commande |
 | `reservation-store` (**branché sur l'API**) | `me/reservations`, `reservations` | réservation, mes réservations (compte connecté) | —                                  |
 | `slots-store` (**branché sur l'API**)     | `creneaux`             | réservation (créneaux et places libres)          | —                                          |
-| `admin-reservations-store` (**branché sur l'API**) | `admin/reservations` | —                                       | Réservations, fiche, pastille du menu, tableau de bord, Clientèle |
+| `admin-reservations-store` (**branché sur l'API**) | `admin/reservations` | —                                       | Réservations, fiche, pastille du menu, tableau de bord |
 | `order-store` (**branché sur l'API**)     | `commandes`, `me/commandes` | commande, mes commandes (compte connecté)     | —                                          |
-| `admin-orders-store` (**branché sur l'API**) | `admin/commandes`   | —                                                | Commandes, fiche, pastille du menu, tableau de bord, Clientèle, ventes par produit |
+| `admin-orders-store` (**branché sur l'API**) | `admin/commandes`   | —                                                | Commandes, fiche, pastille du menu, tableau de bord, ventes par produit |
+| `admin-accounts-store` (**branché sur l'API**) | `admin/comptes`   | —                                                | Clientèle (lecture seule)                  |
 | `settings-store` (**branché sur l'API**)  | `parametres`           | créneaux, horaires, contact, logo, frais de port | Réglages                                   |
 | `visit-store` (`rodiq-visits`)            | `stats/visits`         | compteur (une visite par session)                | tableau de bord                            |
 | `cart-store`, `booking-store`             | — (reste côté navigateur) | panier, sélection en cours                    | —                                          |
@@ -34,8 +35,17 @@ Les types de référence sont dans `lib/reservations.ts`, `lib/commandes.ts`, `l
 - `GET /me` ← `restore` (lancé par `useAuthHydrated`)
 - Admin : `POST /admin/auth/sign-in` ← `signIn` · `POST /admin/auth/sign-out` ← `signOut` · `GET /admin/me` ←
   `restore` (`useAdminHydrated`) ; un 401 sur une écriture admin appelle `expire` (retour à la connexion)
-- `GET /admin/accounts` (Clientèle : comptes avec leurs réservations et commandes) : **à créer**, l'écran
-  Clientèle affiche encore `demoClientAccounts`
+- Clientèle (implémenté dans `api-rodiq/src/comptes/`, branché via `lib/api/comptes.ts` et `admin-accounts-store` :
+  `loadPage` ← liste, `loadDetail` ← fiche à l'ouverture du dialogue « Historique », `fetchMatching` ← export) :
+  - `GET /admin/comptes?q=&tri=recentes|nom|reservations|commandes|depenses&page=&parPage=` (≤ 100) →
+    `{ elements, total, page, parPage }` ; élément = `{ id, prenom, nom, telephone, whatsapp, email, creeLe,
+    nombreReservations, dernierRendezVous, nombreCommandes, depensesEstimees }` (calculés par le serveur : tri et
+    pagination côté API, export = toutes les pages)
+  - `GET /admin/comptes/:id` (dialogue « Historique ») → même compte + `reservations: [{ id, reference, date, debut,
+    fin, statut, total, totalAPartirDe }]` et `commandes: [{ id, reference, creeLe, statut, mode, payee,
+    nombreArticles, total }]`, du plus récent au plus ancien ; 404 si le compte n'existe pas
+  - Pas de création, modification ni suppression : un compte naît de l'inscription, et réservations et commandes
+    le retiennent (`RESTRICT`)
 
 ### Réservations
 
@@ -44,7 +54,7 @@ Implémenté dans `api-rodiq/src/reservations/`, branché via `lib/api/reservati
 change ; `add` ← `POST /reservations` ; `cancel` ← `POST /me/reservations/:id/annuler`), `slots-store`
 (`GET /creneaux`, relu après chaque demande ou refus) et `admin-reservations-store` (`loadPage` ← liste
 paginée, `loadDetail` ← fiche, `confirm` / `reject` / `complete`, `pendingCount` ← `statut=en_attente&parPage=1`
-pour la pastille du menu, `loadAll` ← toutes les pages pour le tableau de bord et la Clientèle, `fetchMatching`
+pour la pastille du menu, `loadAll` ← toutes les pages pour le tableau de bord, `fetchMatching`
 ← toutes les pages des filtres pour l'export). Un refus 400 / 404 / 409 relit les listes et les créneaux.
 Le tableau de bord lit toutes les réservations page après page : à remplacer par une route de statistiques
 quand le volume grandira.
@@ -84,7 +94,7 @@ Implémenté dans `api-rodiq/src/commandes/`, branché via `lib/api/commandes.ts
 les produits concernés sont relus dans `shop-store`) et `admin-orders-store` (`loadPage` ← liste paginée,
 `loadDetail` ← fiche, `accept` / `markReady` / `deliver` / `markPaid` / `cancel`, `pendingCount` ←
 `statut=en_attente&parPage=1` pour la pastille, `loadAll` ← toutes les pages pour les indicateurs de l'écran
-Commandes, le tableau de bord, la Clientèle et les ventes par produit, `fetchMatching` ← export). **Compte client
+Commandes, le tableau de bord et les ventes par produit, `fetchMatching` ← export). **Compte client
 obligatoire** : `checkout-flow.tsx` renvoie vers la connexion ou l'inscription, les coordonnées viennent du compte.
 
 - `POST /commandes` ← `add` : `{ lignes: [{ produitId, declinaisonId?, quantite }], mode, destination?, adresse?,

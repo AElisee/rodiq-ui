@@ -73,4 +73,8 @@ export const endpoints = {
     encaissement: (id: string) => `/admin/commandes/${encodeURIComponent(id)}/encaisser`,
     annulationSalon: (id: string) => `/admin/commandes/${encodeURIComponent(id)}/annuler`,
   },
+  comptes: {
+    liste: "/admin/comptes",
+    detail: (id: string) => `/admin/comptes/${encodeURIComponent(id)}`,
+  },
 } as const;
