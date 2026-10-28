@@ -7,6 +7,7 @@ import { formatPrice } from "@/lib/prestations";
 import { productMeasures } from "@/lib/produits";
 import { useShopCategories, useShopProductsById } from "@/lib/stores/shop-store";
 import { resolveCartLines, useCartHydrated, useCartStore } from "@/lib/stores/cart-store";
+import { FlowSkeleton } from "@/components/layout/site-skeleton";
 
 // Lignes du panier et récapitulatif de commande
 export const CartContent = () => {
@@ -19,7 +20,7 @@ export const CartContent = () => {
   const categoryNames = new Map(useShopCategories().map((c) => [c.id, c.name]));
 
   // Le panier est relu depuis le navigateur, ses produits depuis l'API : rien à afficher avant
-  if (!hydrated || pending) return <div className="min-h-64" aria-hidden />;
+  if (!hydrated || pending) return <FlowSkeleton blocks={2} />;
 
   // Lecture des produits ratée : ne pas présenter un panier vide ou incomplet comme s'il l'était
   if (error) {

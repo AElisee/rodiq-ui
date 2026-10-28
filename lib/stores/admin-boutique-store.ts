@@ -33,6 +33,8 @@ type AdminBoutiqueState = {
   // Page affichée par l'écran Produits et les filtres qui l'ont produite
   query: AdminProductsQuery | null;
   page: ProductsPage<AdminProduct> | null;
+  // Filtres de la page reçue : différents de `query` pendant la lecture de nouveaux filtres
+  pageQuery: AdminProductsQuery | null;
   pageError: string | undefined;
   loadPage: (query: AdminProductsQuery) => Promise<void>;
   // Compteurs de l'en-tête (tous les produits, produits à réapprovisionner, produits masqués)
@@ -166,6 +168,7 @@ export const useAdminBoutiqueStore = create<AdminBoutiqueState>()((set, get) => 
 
     query: null,
     page: null,
+    pageQuery: null,
     pageError: undefined,
     loadPage: async (query) => {
       const request = ++pageRequest;
@@ -179,11 +182,11 @@ export const useAdminBoutiqueStore = create<AdminBoutiqueState>()((set, get) => 
           }
           return;
         }
-        if (request === pageRequest) set({ page, pageError: undefined });
+        if (request === pageRequest) set({ page, pageQuery: query, pageError: undefined });
       } catch (error) {
         expireOn401(error);
         console.error("Lecture des produits impossible", error);
-        if (request === pageRequest) set({ pageError: errorMessage(error) });
+        if (request === pageRequest) set({ pageQuery: query, pageError: errorMessage(error) });
       }
     },
 

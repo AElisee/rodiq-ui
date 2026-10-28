@@ -12,7 +12,10 @@ import {
   adminInputClassName,
   adminLabelClassName,
   adminOutlineButtonClassName,
+  PendingLabel,
 } from "@/components/admin/admin-ui";
+import { AdminPanelsSkeleton } from "@/components/admin/admin-skeleton";
+import { Skeleton } from "@/components/ui/skeleton";
 import { AdminDatePicker } from "@/components/admin/admin-date-picker";
 import { FieldError } from "@/components/forms/form-fields";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -32,7 +35,7 @@ import { useSave } from "./use-save";
 // Leaflet a besoin du navigateur : la carte n'est jamais rendue côté serveur
 const LocationMap = dynamic(() => import("@/components/map/location-map").then((m) => m.LocationMap), {
   ssr: false,
-  loading: () => <div className="h-80 w-full rounded-[var(--radius)] border border-sand bg-sand" aria-hidden />,
+  loading: () => <Skeleton className="h-80 w-full rounded-[var(--radius)]" />,
 });
 
 // Lundi en premier, comme dans le pied de page
@@ -226,7 +229,7 @@ const OpeningHours = () => {
       <div className="flex flex-wrap items-center justify-end gap-4">
         {changed && <p className="font-sans text-sm text-taupe">Modifications non enregistrées</p>}
         <button type="button" onClick={save} disabled={!changed || invalid || saving} className={adminButtonClassName}>
-          Enregistrer les horaires
+          <PendingLabel pending={saving}>Enregistrer les horaires</PendingLabel>
         </button>
       </div>
     </AdminPanel>
@@ -349,7 +352,7 @@ const BookingRulesForm = () => {
           }
           className={adminButtonClassName}
         >
-          Enregistrer les règles
+          <PendingLabel pending={saving}>Enregistrer les règles</PendingLabel>
         </button>
       </div>
     </AdminPanel>
@@ -408,7 +411,7 @@ const ClosedDates = () => {
           />
         </div>
         <button type="submit" disabled={!date || saving} className={adminButtonClassName}>
-          Ajouter
+          <PendingLabel pending={saving}>Ajouter</PendingLabel>
         </button>
       </form>
 
@@ -591,7 +594,7 @@ const SalonLocationForm = () => {
             }
             className={adminButtonClassName}
           >
-            Enregistrer
+            <PendingLabel pending={saving}>Enregistrer</PendingLabel>
           </button>
         </div>
       </div>
@@ -626,7 +629,7 @@ const FirstSetup = () => {
         onClick={() => run(configure, () => toast.success("Salon configuré"))}
         className={adminButtonClassName}
       >
-        Créer les réglages
+        <PendingLabel pending={saving}>Créer les réglages</PendingLabel>
       </button>
     </AdminPanel>
   );
@@ -636,7 +639,7 @@ export const SettingsEditor = () => {
   const hydrated = useSettingsHydrated();
   const configured = useSettingsStore((s) => s.configured);
 
-  if (!hydrated) return <div className="min-h-96" aria-hidden />;
+  if (!hydrated) return <AdminPanelsSkeleton panels={4} />;
 
   if (!configured) {
     return (

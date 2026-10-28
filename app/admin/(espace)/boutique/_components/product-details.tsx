@@ -8,7 +8,8 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { AdminBackLink, DetailNotFound, DetailPanel, DetailRow, detailLinkClassName } from "@/components/admin/admin-detail";
-import { AdminPageHeader, OrderStatusBadge, StockBadge, adminSmallOutlineButtonClassName } from "@/components/admin/admin-ui";
+import { AdminPageHeader, OrderStatusBadge, StockBadge, adminSmallOutlineButtonClassName, PendingLabel } from "@/components/admin/admin-ui";
+import { AdminDetailSkeleton } from "@/components/admin/admin-skeleton";
 import { ProductVisual } from "@/components/shop/product-visual";
 import { errorMessage } from "@/lib/api/client";
 import { resizeImage } from "@/lib/images";
@@ -62,7 +63,7 @@ export const ProductReadState = ({ error, retry }: { error?: ReadError; retry: (
       </div>
     );
 
-  return <div className="min-h-96" aria-hidden />;
+  return <AdminDetailSkeleton />;
 };
 
 // Photos du produit : chaque ajout, retrait ou changement de photo principale est enregistré aussitôt
@@ -194,7 +195,7 @@ const ProductPhotos = ({ product }: { product: AdminProduct }) => {
           )}
         >
           <ImagePlus className="size-3.5" strokeWidth={1.75} aria-hidden />
-          {busy ? "Envoi…" : "Ajouter des photos"}
+          <PendingLabel pending={busy} pendingLabel="Envoi…">Ajouter des photos</PendingLabel>
           <input
             type="file"
             accept="image/png,image/jpeg,image/webp"

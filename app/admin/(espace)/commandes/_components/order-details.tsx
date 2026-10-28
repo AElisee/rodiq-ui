@@ -13,6 +13,7 @@ import {
   adminSmallButtonClassName,
   adminSmallOutlineButtonClassName,
 } from "@/components/admin/admin-ui";
+import { AdminDetailSkeleton } from "@/components/admin/admin-skeleton";
 import { ProductVisual } from "@/components/shop/product-visual";
 import { errorMessage } from "@/lib/api/client";
 import {
@@ -140,7 +141,7 @@ export const OrderDetails = ({ id }: { id: string }) => {
       </div>
     );
 
-  if (!order) return <div className="min-h-96" aria-hidden />;
+  if (!order) return <AdminDetailSkeleton />;
 
   const { customer, delivery } = order;
   const items = orderItemCount(order);

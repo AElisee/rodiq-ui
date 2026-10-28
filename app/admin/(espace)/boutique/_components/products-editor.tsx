@@ -14,6 +14,7 @@ import {
   adminButtonClassName,
   adminInputClassName,
 } from "@/components/admin/admin-ui";
+import { AdminListSkeleton, AdminTableSkeleton } from "@/components/admin/admin-skeleton";
 import { AdminExportButtons } from "@/components/admin/admin-export";
 import { ProductVisual } from "@/components/shop/product-visual";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -99,6 +100,7 @@ export const ProductsEditor = () => {
   const categories = useAdminCategories();
   const page = useAdminBoutiqueStore((s) => s.page);
   const pageError = useAdminBoutiqueStore((s) => s.pageError);
+  const loading = useAdminBoutiqueStore((s) => s.query !== s.pageQuery);
   const loadPage = useAdminBoutiqueStore((s) => s.loadPage);
   const fetchMatching = useAdminBoutiqueStore((s) => s.fetchMatching);
   const setHidden = useAdminBoutiqueStore((s) => s.setHidden);
@@ -141,7 +143,7 @@ export const ProductsEditor = () => {
     if (categoriesLoaded) void loadPage(JSON.parse(filtersKey) as AdminProductsQuery);
   }, [categoriesLoaded, filtersKey, loadPage]);
 
-  if (!ordersHydrated || (!page && !pageError)) return <div className="min-h-96" aria-hidden />;
+  if (!ordersHydrated || (!page && !pageError)) return <AdminListSkeleton filters={4} columns={6} />;
 
   const pageCount = page ? Math.ceil(page.total / ADMIN_PAGE_SIZE) : 0;
   const currentPage = page?.page ?? pageNumber;
@@ -243,7 +245,9 @@ export const ProductsEditor = () => {
         </div>
       </div>
 
-      {pageError ? (
+      {loading ? (
+        <AdminTableSkeleton columns={6} />
+      ) : pageError ? (
         <div role="alert" className="rounded-[var(--radius)] border border-sand p-6 font-sans text-sm text-cocoa">
           <p className="font-serif text-lg">Les produits n&apos;ont pas pu être chargés.</p>
           <p className="mt-2 text-taupe">{pageError}</p>

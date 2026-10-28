@@ -17,6 +17,8 @@ import {
 import { errorMessage } from "@/lib/api/client";
 import { selectCurrentAccount, useAuthHydrated, useAuthStore } from "@/lib/stores/auth-store";
 import { safeRedirect } from "@/lib/validation";
+import { FormSkeleton } from "@/components/layout/site-skeleton";
+import { PendingLabel } from "@/components/ui/shimmer";
 
 const loginSchema = z.object({
   email: z.email("Adresse e-mail invalide"),
@@ -47,7 +49,7 @@ export const LoginForm = () => {
   const [email, password] = useWatch({ control, name: ["email", "password"] });
 
   // La session est relue depuis le navigateur : rien à afficher côté serveur
-  if (!hydrated) return <div className="min-h-96" aria-hidden />;
+  if (!hydrated) return <FormSkeleton />;
 
   // Après connexion, on quitte la page : ne pas afficher l'écran « déjà connectée » entre-temps
   if (account && !isSubmitting && !isSubmitSuccessful) {
@@ -135,7 +137,7 @@ export const LoginForm = () => {
           disabled={!email.trim() || !password || isSubmitting}
           className={`mt-2 ${submitClassName}`}
         >
-          Se connecter
+          <PendingLabel pending={isSubmitting} pendingLabel="Connexion…">Se connecter</PendingLabel>
         </button>
       </form>
 

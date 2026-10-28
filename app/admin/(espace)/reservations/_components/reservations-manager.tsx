@@ -12,6 +12,7 @@ import {
   adminInputClassName,
   adminSmallOutlineButtonClassName,
 } from "@/components/admin/admin-ui";
+import { AdminListSkeleton, AdminTableSkeleton } from "@/components/admin/admin-skeleton";
 import { detailLinkClassName } from "@/components/admin/admin-detail";
 import { AdminExportButtons } from "@/components/admin/admin-export";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -75,6 +76,7 @@ const exportRow = (r: Reservation) => [
 export const ReservationsManager = () => {
   const page = useAdminReservationsStore((s) => s.page);
   const pageError = useAdminReservationsStore((s) => s.pageError);
+  const loading = useAdminReservationsStore((s) => s.query !== s.pageQuery);
   const loadPage = useAdminReservationsStore((s) => s.loadPage);
   const fetchMatching = useAdminReservationsStore((s) => s.fetchMatching);
   const [status, setStatus] = useState<ReservationStatus | null>("en_attente");
@@ -91,7 +93,7 @@ export const ReservationsManager = () => {
     void loadPage(JSON.parse(filtersKey) as ReservationsQuery);
   }, [filtersKey, loadPage]);
 
-  if (!page && !pageError) return <div className="min-h-96" aria-hidden />;
+  if (!page && !pageError) return <AdminListSkeleton columns={5} />;
 
   const today = toDateKey(new Date());
   const count = (value: ReservationStatus | null) =>
@@ -165,7 +167,9 @@ export const ReservationsManager = () => {
         </div>
       </div>
 
-      {pageError ? (
+      {loading ? (
+        <AdminTableSkeleton columns={5} />
+      ) : pageError ? (
         <div role="alert" className="rounded-[var(--radius)] border border-sand p-6 font-sans text-sm text-cocoa">
           <p className="font-serif text-lg">Les réservations n&apos;ont pas pu être chargées.</p>
           <p className="mt-2 text-taupe">{pageError}</p>

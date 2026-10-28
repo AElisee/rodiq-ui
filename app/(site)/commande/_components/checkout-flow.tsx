@@ -27,6 +27,8 @@ import { useOrderStore } from "@/lib/stores/order-store";
 import { useSettingsHydrated, useSettingsStore } from "@/lib/stores/settings-store";
 import { textSchema } from "@/lib/validation";
 import { OrderConfirmation } from "./order-confirmation";
+import { FlowSkeleton } from "@/components/layout/site-skeleton";
+import { PendingLabel } from "@/components/ui/shimmer";
 
 const checkoutSchema = z
   .object({
@@ -104,7 +106,7 @@ export const CheckoutFlow = () => {
 
   // Le contenu dépend du navigateur (panier, session) et des produits relus depuis l'API
   if (!cartHydrated || !authHydrated || !settingsHydrated || productsPending) {
-    return <div className="min-h-96" aria-hidden />;
+    return <FlowSkeleton className="lg:grid-cols-[1fr_380px]" />;
   }
 
   // Lecture des produits ratée : impossible de vérifier prix et disponibilités
@@ -409,7 +411,7 @@ export const CheckoutFlow = () => {
           aria-describedby="submit-hint"
           className={`mt-8 ${submitClassName}`}
         >
-          Valider ma commande
+          <PendingLabel pending={isSubmitting} pendingLabel="Envoi de la commande…">Valider ma commande</PendingLabel>
         </button>
         <p id="submit-hint" className="mt-4 text-center font-sans text-sm text-taupe">
           {soldOut.length > 0

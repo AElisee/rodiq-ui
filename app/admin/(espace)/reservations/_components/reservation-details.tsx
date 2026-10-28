@@ -5,6 +5,7 @@ import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { AdminBackLink, DetailNotFound, DetailPanel, DetailRow } from "@/components/admin/admin-detail";
 import { AdminPageHeader, StatusBadge } from "@/components/admin/admin-ui";
+import { AdminDetailSkeleton } from "@/components/admin/admin-skeleton";
 import { formatPrice } from "@/lib/prestations";
 import {
   contactChannels,
@@ -52,7 +53,7 @@ export const ReservationDetails = ({ id }: { id: string }) => {
       </div>
     );
 
-  if (!reservation) return <div className="min-h-96" aria-hidden />;
+  if (!reservation) return <AdminDetailSkeleton />;
 
   const { client } = reservation;
   const isToday = reservation.date === toDateKey(new Date());

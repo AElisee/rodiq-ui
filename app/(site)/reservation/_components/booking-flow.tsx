@@ -35,6 +35,8 @@ import {
 import { BookingConfirmation } from "./booking-confirmation";
 import { PrestationPicker } from "./prestation-picker";
 import { SlotPicker } from "./slot-picker";
+import { FlowSkeleton } from "@/components/layout/site-skeleton";
+import { PendingLabel } from "@/components/ui/shimmer";
 
 // Réserver exige un compte : la cliente connectée réserve avec les coordonnées de son compte, les autres
 // créent leur compte dans ce formulaire (champs du compte vérifiés seulement dans ce cas)
@@ -166,7 +168,7 @@ export const BookingFlow = () => {
 
   // Le contenu dépend du navigateur (sélection, session) et de l'API (créneaux) : rien côté serveur
   if (!authHydrated || !settingsHydrated || !slotsLoaded) {
-    return <div className="min-h-96" aria-hidden />;
+    return <FlowSkeleton className="mt-12 lg:grid-cols-[1fr_360px]" />;
   }
 
   if (confirmed) return <BookingConfirmation {...confirmed} />;
@@ -506,7 +508,7 @@ export const BookingFlow = () => {
           aria-describedby="submit-hint"
           className={`mt-8 ${submitClassName}`}
         >
-          Envoyer ma demande
+          <PendingLabel pending={isSubmitting} pendingLabel="Envoi de la demande…">Envoyer ma demande</PendingLabel>
         </button>
         <p id="submit-hint" className="mt-4 text-center font-sans text-sm text-taupe">
           {missing.length > 0

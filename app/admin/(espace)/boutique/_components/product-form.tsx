@@ -12,6 +12,7 @@ import {
   adminLabelClassName,
   adminSmallOutlineButtonClassName,
   adminTextareaClassName,
+  PendingLabel,
 } from "@/components/admin/admin-ui";
 import { FieldError } from "@/components/forms/form-fields";
 import {
@@ -530,7 +531,9 @@ export const ProductFormFields = ({ product, sold, onDone, onCancel }: ProductFo
           </button>
         )}
         <button type="submit" disabled={saving} className={`w-full sm:w-auto ${adminButtonClassName}`}>
-          {saving ? "Enregistrement…" : creating ? "Ajouter le produit" : "Enregistrer"}
+          <PendingLabel pending={saving} pendingLabel="Enregistrement…">
+            {creating ? "Ajouter le produit" : "Enregistrer"}
+          </PendingLabel>
         </button>
       </div>
     </form>

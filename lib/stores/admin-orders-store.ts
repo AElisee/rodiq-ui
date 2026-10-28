@@ -12,6 +12,8 @@ type AdminOrdersState = {
   // Page affichée par l'écran Commandes et les filtres qui l'ont produite
   query: OrdersQuery | null;
   page: OrdersPage | null;
+  // Filtres de la page reçue : différents de `query` pendant la lecture de nouveaux filtres
+  pageQuery: OrdersQuery | null;
   pageError: string | undefined;
   loadPage: (query: OrdersQuery) => Promise<void>;
   // Fiches ouvertes (écran de détail), par identifiant ; erreur de lecture avec son statut HTTP
@@ -74,6 +76,7 @@ export const useAdminOrdersStore = create<AdminOrdersState>()((set, get) => {
   return {
     query: null,
     page: null,
+    pageQuery: null,
     pageError: undefined,
     loadPage: async (query) => {
       const request = ++pageRequest;
@@ -87,11 +90,11 @@ export const useAdminOrdersStore = create<AdminOrdersState>()((set, get) => {
           }
           return;
         }
-        if (request === pageRequest) set({ page, pageError: undefined });
+        if (request === pageRequest) set({ page, pageQuery: query, pageError: undefined });
       } catch (error) {
         expireOn401(error);
         console.error("Lecture des commandes impossible", error);
-        if (request === pageRequest) set({ pageError: errorMessage(error) });
+        if (request === pageRequest) set({ pageQuery: query, pageError: errorMessage(error) });
       }
     },
 

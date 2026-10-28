@@ -16,6 +16,7 @@ import { useShopCategories, useShopProduct } from "@/lib/stores/shop-store";
 import { cn } from "@/lib/utils";
 import { AddToCart } from "./add-to-cart";
 import { ProductGallery } from "./product-gallery";
+import { ProductDetailSkeleton } from "@/components/layout/site-skeleton";
 
 const Breadcrumb = ({ category, name }: { category?: ProductCategory; name?: string }) => (
   <nav aria-label="Fil d'Ariane">
@@ -93,7 +94,7 @@ export const ProductDetail = ({ id }: { id: string }) => {
     );
   }
 
-  if (!product) return <div className="min-h-96" aria-hidden />;
+  if (!product) return <ProductDetailSkeleton />;
 
   const category = categories.find((c) => c.id === product.categoryId);
   const discount = getDiscountPercent(product);

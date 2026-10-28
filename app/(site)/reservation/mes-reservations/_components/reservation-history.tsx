@@ -6,6 +6,7 @@ import { statusMeta, type ReservationStatus } from "@/lib/reservations";
 import { useMyReservations } from "@/lib/stores/reservation-store";
 import { cn } from "@/lib/utils";
 import { ReservationCard } from "./reservation-card";
+import { HistorySkeleton } from "@/components/layout/site-skeleton";
 
 const filters: { value: ReservationStatus | null; label: string }[] = [
   { value: null, label: "Toutes" },
@@ -21,7 +22,7 @@ export const ReservationHistory = () => {
   const [status, setStatus] = useState<ReservationStatus | null>(null);
 
   // Session et réservations lues depuis l'API : rien à afficher côté serveur
-  if (!loaded) return <div className="min-h-64" aria-hidden />;
+  if (!loaded) return <HistorySkeleton />;
 
   // Sans compte, pas de réservation : le bandeau au-dessus invite à se connecter
   if (!signedIn) return null;

@@ -5,7 +5,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { errorMessage } from "@/lib/api/client";
 import { toDateKey } from "@/lib/reservations";
-import { adminButtonClassName } from "./admin-ui";
+import { adminButtonClassName, PendingLabel } from "./admin-ui";
 
 // Tableau à exporter : en-têtes et lignes en texte brut (toutes les lignes filtrées, pas seulement la page)
 export type ExportTable = {
@@ -87,18 +87,19 @@ type AdminExportButtonsProps =
 
 // Boutons « Imprimer » et « Exporter CSV » d'un tableau
 export const AdminExportButtons = (props: AdminExportButtonsProps) => {
-  const [loading, setLoading] = useState(false);
+  // Export en cours de préparation (l'API lit toutes les lignes)
+  const [loading, setLoading] = useState<"print" | "csv" | null>(null);
   const empty = ("table" in props ? props.table.rows.length : props.count) === 0;
 
-  const run = async (action: (table: ExportTable) => unknown) => {
+  const run = async (kind: "print" | "csv", action: (table: ExportTable) => unknown) => {
     if ("table" in props) return action(props.table);
-    setLoading(true);
+    setLoading(kind);
     try {
       await action(await props.load());
     } catch (error) {
       toast.error("L'export n'a pas été préparé", { description: errorMessage(error) });
     } finally {
-      setLoading(false);
+      setLoading(null);
     }
   };
 
@@ -106,21 +107,21 @@ export const AdminExportButtons = (props: AdminExportButtonsProps) => {
     <>
       <button
         type="button"
-        onClick={() => void run(printTable)}
-        disabled={empty || loading}
+        onClick={() => void run("print", printTable)}
+        disabled={empty || !!loading}
         className={adminButtonClassName}
       >
         <Printer className="size-4" strokeWidth={1.75} aria-hidden />
-        Imprimer
+        <PendingLabel pending={loading === "print"} pendingLabel="Préparation…">Imprimer</PendingLabel>
       </button>
       <button
         type="button"
-        onClick={() => void run(downloadCsv)}
-        disabled={empty || loading}
+        onClick={() => void run("csv", downloadCsv)}
+        disabled={empty || !!loading}
         className={adminButtonClassName}
       >
         <Download className="size-4" strokeWidth={1.75} aria-hidden />
-        Exporter CSV
+        <PendingLabel pending={loading === "csv"} pendingLabel="Préparation…">Exporter CSV</PendingLabel>
       </button>
     </>
   );

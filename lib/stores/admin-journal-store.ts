@@ -7,6 +7,9 @@ import { useAdminStore } from "./admin-store";
 // Lecture seule : les entrées sont écrites par l'API à chaque connexion ou action. Une session admin expirée
 // renvoie à la connexion.
 type AdminJournalState = {
+  // Lecture demandée en dernier et celle de la page reçue : différentes pendant la lecture de nouveaux filtres
+  query: JournalQuery | null;
+  pageQuery: JournalQuery | null;
   // Jour affiché
   page: JournalDayPage | null;
   pageError: string | undefined;
@@ -14,6 +17,8 @@ type AdminJournalState = {
   // Toutes les entrées correspondant aux filtres (export), sans changer l'état
   fetchMatching: (filters: JournalFilters) => Promise<JournalEntry[]>;
 };
+
+type JournalQuery = { filters: JournalFilters; dayNumber: number };
 
 const expireOn401 = (error: unknown) => {
   if (isApiError(error, 401)) useAdminStore.getState().expire();
@@ -24,18 +29,22 @@ const expireOn401 = (error: unknown) => {
 let pageRequest = 0;
 
 export const useAdminJournalStore = create<AdminJournalState>()((set) => ({
+  query: null,
+  pageQuery: null,
   page: null,
   pageError: undefined,
   // Un jour au-delà du dernier (filtres resserrés) est ramené au dernier par l'API
   loadPage: async (filters, dayNumber) => {
     const request = ++pageRequest;
+    const query = { filters, dayNumber };
+    set({ query });
     try {
       const page = await journalApi.listDay(filters, dayNumber);
-      if (request === pageRequest) set({ page, pageError: undefined });
+      if (request === pageRequest) set({ page, pageQuery: query, pageError: undefined });
     } catch (error) {
       expireOn401(error);
       console.error("Lecture du journal impossible", error);
-      if (request === pageRequest) set({ pageError: errorMessage(error) });
+      if (request === pageRequest) set({ pageQuery: query, pageError: errorMessage(error) });
     }
   },
 

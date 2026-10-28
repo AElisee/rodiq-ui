@@ -13,6 +13,7 @@ import {
   adminSmallOutlineButtonClassName,
   chipClassName,
 } from "@/components/admin/admin-ui";
+import { AdminListSkeleton, AdminTableSkeleton } from "@/components/admin/admin-skeleton";
 import { AdminDatePicker } from "@/components/admin/admin-date-picker";
 import { AdminExportButtons } from "@/components/admin/admin-export";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -143,6 +144,7 @@ const EntryTarget = ({ entry }: { entry: JournalEntry }) => {
 export const JournalList = () => {
   const page = useAdminJournalStore((s) => s.page);
   const pageError = useAdminJournalStore((s) => s.pageError);
+  const loading = useAdminJournalStore((s) => s.query !== s.pageQuery);
   const loadPage = useAdminJournalStore((s) => s.loadPage);
   const fetchMatching = useAdminJournalStore((s) => s.fetchMatching);
   const [category, setCategory] = useState<JournalCategory | null>(null);
@@ -162,7 +164,7 @@ export const JournalList = () => {
     void loadPage(JSON.parse(filtersKey) as JournalFilters, dayNumber);
   }, [filtersKey, dayNumber, loadPage]);
 
-  if (!page && !pageError) return <div className="min-h-96" aria-hidden />;
+  if (!page && !pageError) return <AdminListSkeleton filters={2} columns={5} />;
 
   const days = page?.days ?? [];
   const currentDayNumber = page?.dayNumber ?? dayNumber;
@@ -273,7 +275,9 @@ export const JournalList = () => {
         )}
       </div>
 
-      {pageError ? (
+      {loading ? (
+        <AdminTableSkeleton columns={5} />
+      ) : pageError ? (
         <div role="alert" className="rounded-[var(--radius)] border border-sand p-6 font-sans text-sm text-cocoa">
           <p className="font-serif text-lg">Le journal n&apos;a pas pu être chargé.</p>
           <p className="mt-2 text-taupe">{pageError}</p>

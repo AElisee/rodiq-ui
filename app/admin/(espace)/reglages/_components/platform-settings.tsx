@@ -10,6 +10,7 @@ import {
   adminInputClassName,
   adminLabelClassName,
   adminSmallOutlineButtonClassName,
+  PendingLabel,
 } from "@/components/admin/admin-ui";
 import { FieldError } from "@/components/forms/form-fields";
 import { useSettingsStore, type LogoVariant, type PlatformInfo } from "@/lib/stores/settings-store";
@@ -183,7 +184,7 @@ const PlatformInfoForm = () => {
       <div className="flex flex-wrap items-center justify-end gap-4">
         {changed && <p className="font-sans text-sm text-taupe">Modifications non enregistrées</p>}
         <button type="button" onClick={save} disabled={!changed || invalid || saving} className={adminButtonClassName}>
-          Enregistrer les informations
+          <PendingLabel pending={saving}>Enregistrer les informations</PendingLabel>
         </button>
       </div>
     </AdminPanel>
@@ -305,7 +306,7 @@ const LogoManager = () => {
                     className={adminSmallOutlineButtonClassName}
                   >
                     <Trash2 className="size-3.5" strokeWidth={1.75} />
-                    Retirer
+                    <PendingLabel pending={saving}>Retirer</PendingLabel>
                   </button>
                 )}
               </div>

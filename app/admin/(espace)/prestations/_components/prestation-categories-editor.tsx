@@ -9,7 +9,9 @@ import {
   adminButtonClassName,
   adminInputClassName,
   adminLabelClassName,
+  PendingLabel,
 } from "@/components/admin/admin-ui";
+import { AdminListSkeleton } from "@/components/admin/admin-skeleton";
 import { FieldError } from "@/components/forms/form-fields";
 import {
   Dialog,
@@ -133,7 +135,7 @@ const CategoryForm = ({ category, categories, trigger }: CategoryFormProps) => {
               </button>
             </DialogClose>
             <button type="submit" disabled={saving} className={`w-full sm:w-auto ${adminButtonClassName}`}>
-              {saving ? "Enregistrement…" : "Enregistrer"}
+              <PendingLabel pending={saving} pendingLabel="Enregistrement…">Enregistrer</PendingLabel>
             </button>
           </div>
         </form>
@@ -145,11 +147,26 @@ const CategoryForm = ({ category, categories, trigger }: CategoryFormProps) => {
 // Suppression d'une catégorie vide ; sinon, explique qu'il faut d'abord déplacer ses prestations
 const DeleteCategory = ({ category }: { category: PrestationCategory }) => {
   const removePrestationCategory = usePrestationsStore((s) => s.removePrestationCategory);
+  const [open, setOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const count = category.prestations.length;
   const blocked = count > 0;
 
+  const confirm = async () => {
+    setDeleting(true);
+    try {
+      await removePrestationCategory(category.id);
+      setOpen(false);
+      toast("Catégorie supprimée", { description: category.name });
+    } catch (error) {
+      reportFailure(`« ${category.name} » n'a pas été supprimée`)(error);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   return (
-    <Dialog>
+    <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <button type="button" aria-label={`Supprimer ${category.name}`} title="Supprimer" className={iconButtonClassName}>
           <Trash2 className="size-4" strokeWidth={1.75} />
@@ -178,20 +195,14 @@ const DeleteCategory = ({ category }: { category: PrestationCategory }) => {
               Voir les prestations
             </Link>
           ) : (
-            <DialogClose asChild>
-              <button
-                type="button"
-                onClick={() =>
-                  removePrestationCategory(category.id).then(
-                    () => toast("Catégorie supprimée", { description: category.name }),
-                    reportFailure(`« ${category.name} » n'a pas été supprimée`),
-                  )
-                }
-                className={`w-full sm:w-auto ${adminButtonClassName}`}
-              >
-                Supprimer
-              </button>
-            </DialogClose>
+            <button
+              type="button"
+              onClick={() => void confirm()}
+              disabled={deleting}
+              className={`w-full sm:w-auto ${adminButtonClassName}`}
+            >
+              <PendingLabel pending={deleting} pendingLabel="Suppression…">Supprimer</PendingLabel>
+            </button>
           )}
         </div>
       </DialogContent>
@@ -210,7 +221,7 @@ export const PrestationCategoriesEditor = () => {
       reportFailure(`« ${category.name} » n'a pas été déplacée`),
     );
 
-  if (!hydrated) return <div className="min-h-96" aria-hidden />;
+  if (!hydrated) return <AdminListSkeleton filters={0} columns={4} />;
 
   return (
     <div className="flex flex-col gap-6">

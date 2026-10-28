@@ -14,6 +14,7 @@ import {
   adminSmallButtonClassName,
   chipClassName,
 } from "@/components/admin/admin-ui";
+import { AdminDashboardSkeleton } from "@/components/admin/admin-skeleton";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
 import { buildStats, statsPeriods, type StatsPeriod } from "@/lib/admin-stats";
 import { orderTotal } from "@/lib/commandes";
@@ -92,7 +93,7 @@ export const Dashboard = () => {
     [hydrated, period, status, reservations, visits, orders],
   );
 
-  if (!hydrated) return <div className="min-h-96" aria-hidden />;
+  if (!hydrated) return <AdminDashboardSkeleton />;
 
   // Jamais de chiffres à zéro à la place d'une lecture échouée
   if (reservationsError) {

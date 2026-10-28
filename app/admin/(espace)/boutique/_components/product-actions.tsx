@@ -3,7 +3,7 @@
 import { Trash2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { adminButtonClassName } from "@/components/admin/admin-ui";
+import { adminButtonClassName, PendingLabel } from "@/components/admin/admin-ui";
 import {
   Dialog,
   DialogClose,
@@ -64,7 +64,7 @@ export const DeleteProduct = ({ product, onDeleted }: { product: AdminProduct; o
             disabled={deleting}
             className={`w-full sm:w-auto ${adminButtonClassName}`}
           >
-            {deleting ? "Suppression…" : "Supprimer"}
+            <PendingLabel pending={deleting} pendingLabel="Suppression…">Supprimer</PendingLabel>
           </button>
         </div>
       </DialogContent>

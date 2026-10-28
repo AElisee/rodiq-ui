@@ -21,6 +21,8 @@ type ShopState = {
   // Page affichée par /boutique et les filtres qui l'ont produite
   query: ShopQuery | null;
   page: ProductsPage<Product> | null;
+  // Filtres de la page reçue : différents de `query` pendant la lecture de nouveaux filtres
+  pageQuery: ShopQuery | null;
   pageError: string | undefined;
   loadPage: (query: ShopQuery) => Promise<void>;
   // Produits lus un par un (fiche produit, panier, commande), par identifiant
@@ -56,6 +58,7 @@ export const useShopStore = create<ShopState>()((set, get) => ({
 
   query: null,
   page: null,
+  pageQuery: null,
   pageError: undefined,
   loadPage: async (query) => {
     const request = ++pageRequest;
@@ -69,10 +72,10 @@ export const useShopStore = create<ShopState>()((set, get) => ({
         }
         return;
       }
-      if (request === pageRequest) set({ page, pageError: undefined });
+      if (request === pageRequest) set({ page, pageQuery: query, pageError: undefined });
     } catch (error) {
       console.error("Lecture des produits impossible", error);
-      if (request === pageRequest) set({ pageError: errorMessage(error) });
+      if (request === pageRequest) set({ pageQuery: query, pageError: errorMessage(error) });
     }
   },
 

@@ -12,7 +12,9 @@ import {
   adminLabelClassName,
   adminSmallOutlineButtonClassName,
   adminTextareaClassName,
+  PendingLabel,
 } from "@/components/admin/admin-ui";
+import { AdminListSkeleton } from "@/components/admin/admin-skeleton";
 import { FieldError } from "@/components/forms/form-fields";
 import {
   Dialog,
@@ -144,7 +146,7 @@ const CategoryForm = ({ category, categories, trigger }: CategoryFormProps) => {
               </button>
             </DialogClose>
             <button type="submit" disabled={saving} className={`w-full sm:w-auto ${adminButtonClassName}`}>
-              {saving ? "Enregistrement…" : "Enregistrer"}
+              <PendingLabel pending={saving} pendingLabel="Enregistrement…">Enregistrer</PendingLabel>
             </button>
           </div>
         </form>
@@ -210,7 +212,7 @@ const DeleteCategory = ({ category }: { category: AdminProductCategory }) => {
               disabled={deleting}
               className={`w-full sm:w-auto ${adminButtonClassName}`}
             >
-              {deleting ? "Suppression…" : "Supprimer"}
+              <PendingLabel pending={deleting} pendingLabel="Suppression…">Supprimer</PendingLabel>
             </button>
           )}
         </div>
@@ -257,7 +259,7 @@ export const CategoriesEditor = () => {
   const loadError = useAdminBoutiqueStore((s) => s.categoriesError);
   const [moving, setMoving] = useState(false);
 
-  if (!loaded) return <div className="min-h-96" aria-hidden />;
+  if (!loaded) return <AdminListSkeleton filters={0} columns={4} />;
 
   const move = async (category: AdminProductCategory, offset: -1 | 1) => {
     setMoving(true);

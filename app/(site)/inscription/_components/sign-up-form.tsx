@@ -26,6 +26,8 @@ import {
   safeRedirect,
   withDialCode,
 } from "@/lib/validation";
+import { FormSkeleton } from "@/components/layout/site-skeleton";
+import { PendingLabel } from "@/components/ui/shimmer";
 
 const signUpSchema = z
   .object({
@@ -77,7 +79,7 @@ export const SignUpForm = () => {
   const loginHref = `/connexion?redirect=${encodeURIComponent(redirect)}`;
 
   // La session est relue depuis le navigateur : rien à afficher côté serveur
-  if (!hydrated) return <div className="min-h-96" aria-hidden />;
+  if (!hydrated) return <FormSkeleton fields={6} />;
 
   // Déjà connectée (hors redirection juste après l'inscription)
   if (account && !isSubmitting && !isSubmitSuccessful) {
@@ -232,7 +234,7 @@ export const SignUpForm = () => {
           disabled={!complete || emailTaken || isSubmitting}
           className={`mt-10 ${submitClassName}`}
         >
-          Créer mon compte
+          <PendingLabel pending={isSubmitting} pendingLabel="Création du compte…">Créer mon compte</PendingLabel>
         </button>
       </form>
 

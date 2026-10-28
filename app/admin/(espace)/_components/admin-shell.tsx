@@ -315,7 +315,7 @@ export const AdminShell = ({ children }: { children: ReactNode }) => {
   // Page rendue mais masquée tant que la session n'est pas vérifiée (navigation instantanée)
   if (!hydrated || !email) {
     return (
-      <div className="min-h-svh bg-pearl" aria-hidden>
+      <div className="min-h-svh bg-linen" aria-hidden>
         <div hidden>{children}</div>
       </div>
     );
@@ -334,10 +334,10 @@ export const AdminShell = ({ children }: { children: ReactNode }) => {
 
   return (
     <TooltipProvider>
-      <div className="flex min-h-svh flex-1 bg-pearl">
+      <div className="flex min-h-svh flex-1 bg-linen">
         <aside
           className={cn(
-            "sticky top-0 hidden h-svh shrink-0 flex-col border-r border-sand py-8 transition-[width] duration-200 lg:flex",
+            "sticky top-0 hidden h-svh shrink-0 flex-col border-r border-sand bg-pearl py-8 transition-[width] duration-200 lg:flex",
             collapsed ? "w-16 px-2" : "w-64 px-3",
           )}
         >

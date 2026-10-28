@@ -15,6 +15,7 @@ import {
   adminInputClassName,
   adminSmallOutlineButtonClassName,
 } from "@/components/admin/admin-ui";
+import { AdminListSkeleton, AdminStatsSkeleton, AdminTableSkeleton } from "@/components/admin/admin-skeleton";
 import { detailLinkClassName } from "@/components/admin/admin-detail";
 import { AdminExportButtons } from "@/components/admin/admin-export";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -101,7 +102,7 @@ const OrderStats = () => {
   const allError = useAdminOrdersStore((s) => s.allError);
   const loadAll = useAdminOrdersStore((s) => s.loadAll);
 
-  if (!loaded) return <div className="h-28" aria-hidden />;
+  if (!loaded) return <AdminStatsSkeleton />;
 
   // Jamais de chiffres à zéro à la place d'une lecture échouée
   if (allError)
@@ -141,6 +142,7 @@ const OrderStats = () => {
 export const OrdersManager = () => {
   const page = useAdminOrdersStore((s) => s.page);
   const pageError = useAdminOrdersStore((s) => s.pageError);
+  const loading = useAdminOrdersStore((s) => s.query !== s.pageQuery);
   const loadPage = useAdminOrdersStore((s) => s.loadPage);
   const fetchMatching = useAdminOrdersStore((s) => s.fetchMatching);
   const [status, setStatus] = useState<OrderStatus | null>("en_attente");
@@ -166,7 +168,7 @@ export const OrdersManager = () => {
     void loadPage(JSON.parse(filtersKey) as OrdersQuery);
   }, [filtersKey, loadPage]);
 
-  if (!page && !pageError) return <div className="min-h-96" aria-hidden />;
+  if (!page && !pageError) return <AdminListSkeleton filters={4} columns={6} />;
 
   const count = (value: OrderStatus | null) =>
     !page ? 0 : value ? page.countByStatus[value] : Object.values(page.countByStatus).reduce((a, b) => a + b, 0);
@@ -227,7 +229,9 @@ export const OrdersManager = () => {
         </div>
       </div>
 
-      {pageError ? (
+      {loading ? (
+        <AdminTableSkeleton columns={6} />
+      ) : pageError ? (
         <div role="alert" className="rounded-[var(--radius)] border border-sand p-6 font-sans text-sm text-cocoa">
           <p className="font-serif text-lg">Les commandes n&apos;ont pas pu être chargées.</p>
           <p className="mt-2 text-taupe">{pageError}</p>

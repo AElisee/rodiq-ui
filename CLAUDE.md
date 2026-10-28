@@ -81,9 +81,13 @@ layout/page utilisent les types globaux générés (`LayoutProps<"/">`, `PagePro
 
 - Code, commentaires, libellés et routes en **français**. Composants en fonctions fléchées `const` avec
   `export default` en bas de fichier pour les pages/layouts.
-- Couleurs : uniquement les tokens de la charte définis dans `app/globals.css` (`pearl`, `blush`, `sand`,
+- Couleurs : uniquement les tokens de la charte définis dans `app/globals.css` (`pearl`, `linen` = fond des pages admin, `blush`, `rosewood` = rose lisible pour les liens, `sand`,
   `taupe`, `cocoa`, `gold`), sans modificateur d'opacité et jamais d'hexadécimal dans un composant.
 - Boutons du site public : `bg-blush text-cocoa hover:bg-sand` (pilule `rounded-full`). Dans `/admin` :
   boutons cocoa/pearl via les classes partagées de `components/admin/admin-ui.tsx`.
+- Chargements : Skeleton à la forme de l'écran pendant la lecture des données
+  (`components/admin/admin-skeleton.tsx` pour l'admin, `components/layout/site-skeleton.tsx` pour le site ;
+  listes paginées : `query !== pageQuery` du store au changement de filtres ou de page), et `PendingLabel`
+  (Shimmer, `components/ui/shimmer.tsx`) sur le libellé d'un bouton tant que l'API n'a pas répondu à l'action.
 - Libellés neutres (« Clientèle », « Client(e) », pas « cliente » seul) ; pas de mention « (facultatif) »
   sur les champs optionnels, seuls les obligatoires sont marqués avec `<Required />`.

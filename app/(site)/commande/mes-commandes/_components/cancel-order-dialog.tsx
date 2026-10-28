@@ -14,6 +14,7 @@ import { errorMessage } from "@/lib/api/client";
 import { orderTotal, type Order } from "@/lib/commandes";
 import { formatPrice } from "@/lib/prestations";
 import { useOrderStore } from "@/lib/stores/order-store";
+import { PendingLabel } from "@/components/ui/shimmer";
 
 // Confirmation d'annulation, avec un motif facultatif transmis au salon
 export const CancelOrderDialog = ({ order }: { order: Order }) => {
@@ -77,9 +78,11 @@ export const CancelOrderDialog = ({ order }: { order: Order }) => {
             type="button"
             onClick={confirm}
             disabled={pending}
-            className="inline-flex h-12 w-full items-center justify-center rounded-full bg-blush px-6 text-base text-cocoa transition-colors hover:bg-sand sm:w-auto"
+            className="inline-flex h-12 w-full items-center justify-center rounded-full bg-blush px-6 text-base text-cocoa transition-colors hover:bg-sand disabled:cursor-not-allowed disabled:bg-sand disabled:text-taupe sm:w-auto"
           >
-            Confirmer l&apos;annulation
+            <PendingLabel pending={pending} pendingLabel="Annulation…">
+              {"Confirmer l'annulation"}
+            </PendingLabel>
           </button>
         </div>
       </DialogContent>

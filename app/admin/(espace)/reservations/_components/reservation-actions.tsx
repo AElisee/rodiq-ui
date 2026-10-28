@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
-import { adminSmallButtonClassName } from "@/components/admin/admin-ui";
+import { adminSmallButtonClassName, PendingLabel } from "@/components/admin/admin-ui";
 import { errorMessage } from "@/lib/api/client";
 import { formatSlotTime, toDateKey, type Reservation } from "@/lib/reservations";
 import { useAdminReservationsStore } from "@/lib/stores/admin-reservations-store";
@@ -48,7 +48,7 @@ export const ReservationActions = ({ reservation: r }: { reservation: Reservatio
     return (
       <>
         <button type="button" onClick={handleConfirm} disabled={pending} className={adminSmallButtonClassName}>
-          Confirmer
+          <PendingLabel pending={pending}>Confirmer</PendingLabel>
         </button>
         <RejectDialog reservation={r} />
       </>
@@ -57,7 +57,7 @@ export const ReservationActions = ({ reservation: r }: { reservation: Reservatio
   if (r.status === "confirmee")
     return r.date <= today ? (
       <button type="button" onClick={handleComplete} disabled={pending} className={adminSmallButtonClassName}>
-        Soin terminé
+        <PendingLabel pending={pending}>Soin terminé</PendingLabel>
       </button>
     ) : (
       <RejectDialog reservation={r} />

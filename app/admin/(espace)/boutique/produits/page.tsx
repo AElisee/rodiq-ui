@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
+import { AdminListSkeleton } from "@/components/admin/admin-skeleton";
 import { ProductsEditor } from "../_components/products-editor";
 
 export const metadata: Metadata = {
@@ -8,7 +9,7 @@ export const metadata: Metadata = {
 
 // Suspense : les filtres se lisent dans l'URL (?stock=alerte depuis le tableau de bord, ?categorie=… depuis les catégories)
 const AdminProductsPage = () => (
-  <Suspense fallback={<div className="min-h-96" aria-hidden />}>
+  <Suspense fallback={<AdminListSkeleton filters={4} columns={6} />}>
     <ProductsEditor />
   </Suspense>
 );

@@ -7,6 +7,7 @@ import {
   adminLabelClassName,
   adminSmallOutlineButtonClassName,
   adminTextareaClassName,
+  PendingLabel,
 } from "@/components/admin/admin-ui";
 import {
   Dialog,
@@ -101,7 +102,9 @@ export const CancelOrderDialog = ({ order }: { order: Order }) => {
             </button>
           </DialogClose>
           <button type="button" onClick={confirm} disabled={!valid || pending} className={`w-full sm:w-auto ${adminButtonClassName}`}>
-            Confirmer l&apos;annulation
+            <PendingLabel pending={pending} pendingLabel="Annulation…">
+              {"Confirmer l'annulation"}
+            </PendingLabel>
           </button>
         </div>
       </DialogContent>

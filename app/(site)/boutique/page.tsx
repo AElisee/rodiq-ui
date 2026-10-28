@@ -3,6 +3,7 @@ import Image from "next/image";
 import { Suspense } from "react";
 import bannerImage from "@/public/images/boutique.jpg";
 import { ShopCatalog } from "./_components/shop-catalog";
+import { ProductGridSkeleton } from "@/components/layout/site-skeleton";
 
 export const metadata: Metadata = {
   title: "Boutique",
@@ -38,7 +39,7 @@ const BoutiquePage = () => (
         </p>
 
         {/* Suspense : la catégorie de départ se lit dans l'URL (?categorie=…) */}
-        <Suspense fallback={<div className="mt-10 min-h-96 md:mt-12" aria-hidden />}>
+        <Suspense fallback={<ProductGridSkeleton className="mt-10 md:mt-12" />}>
           <ShopCatalog />
         </Suspense>
       </div>

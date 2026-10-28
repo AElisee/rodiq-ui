@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { selectCurrentAccount, useAuthHydrated, useAuthStore } from "@/lib/stores/auth-store";
+import { LineSkeleton } from "@/components/layout/site-skeleton";
 
 type AccountBannerProps = {
   // Page où revenir après connexion ou inscription
@@ -17,7 +18,7 @@ export const AccountBanner = ({ redirect, subject }: AccountBannerProps) => {
   const signOut = useAuthStore((s) => s.signOut);
   const target = encodeURIComponent(redirect);
 
-  if (!hydrated) return <div className="h-14" aria-hidden />;
+  if (!hydrated) return <LineSkeleton className="mb-12" />;
 
   return (
     <p className="mb-12 text-center font-sans text-sm text-taupe">

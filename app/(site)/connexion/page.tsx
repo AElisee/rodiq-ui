@@ -3,6 +3,7 @@ import Image from "next/image";
 import { Suspense } from "react";
 import bannerImage from "@/public/images/prestation-hands.jpg";
 import { LoginForm } from "./_components/login-form";
+import { FormSkeleton } from "@/components/layout/site-skeleton";
 
 export const metadata: Metadata = {
   title: "Connexion",
@@ -32,7 +33,7 @@ const ConnexionPage = () => (
     <section className="w-full bg-pearl px-4 py-16 md:px-8 md:py-20 lg:py-24">
       <div className="mx-auto w-full max-w-md">
         {/* Le formulaire lit ?redirect= dans l'URL : rendu côté navigateur */}
-        <Suspense fallback={<div className="min-h-96" aria-hidden />}>
+        <Suspense fallback={<FormSkeleton />}>
           <LoginForm />
         </Suspense>
       </div>

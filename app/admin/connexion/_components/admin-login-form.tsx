@@ -7,7 +7,7 @@ import { useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 import { FieldError, PasswordInput } from "@/components/forms/form-fields";
-import { adminButtonClassName, adminInputClassName, adminLabelClassName } from "@/components/admin/admin-ui";
+import { adminButtonClassName, adminInputClassName, adminLabelClassName, PendingLabel } from "@/components/admin/admin-ui";
 import { errorMessage } from "@/lib/api/client";
 import { useAdminHydrated, useAdminStore } from "@/lib/stores/admin-store";
 import { safeRedirect } from "@/lib/validation";
@@ -102,7 +102,7 @@ export const AdminLoginForm = () => {
         disabled={!emailValue.trim() || !password || isSubmitting}
         className={`mt-3 h-12 w-full text-base ${adminButtonClassName}`}
       >
-        Se connecter
+        <PendingLabel pending={isSubmitting} pendingLabel="Connexion…">Se connecter</PendingLabel>
       </button>
 
       <p className="text-center font-sans text-xs text-taupe">

@@ -15,6 +15,7 @@ import { useShopCategories, useShopCategoriesLoaded, useShopStore } from "@/lib/
 import { cn } from "@/lib/utils";
 import { Pagination } from "./pagination";
 import { ProductCard } from "./product-card";
+import { ProductGridSkeleton } from "@/components/layout/site-skeleton";
 
 const PAGE_SIZE = 24;
 
@@ -40,6 +41,7 @@ export const ShopCatalog = () => {
   const categoriesError = useShopStore((s) => s.categoriesError);
   const result = useShopStore((s) => s.page);
   const pageError = useShopStore((s) => s.pageError);
+  const loading = useShopStore((s) => s.query !== s.pageQuery);
   const loadPage = useShopStore((s) => s.loadPage);
 
   // Ignore une catégorie inconnue ou sans produit visible (lien ?categorie=… périmé), une fois la liste lue
@@ -156,7 +158,9 @@ export const ShopCatalog = () => {
         </div>
       </div>
 
-      {pageError ? (
+      {!result || loading ? (
+        <ProductGridSkeleton className="mt-10" />
+      ) : pageError ? (
         <div role="alert" className="flex flex-col items-center py-20 text-center">
           <p className="font-serif text-[clamp(1.1rem,1.5vw,1.35rem)] text-cocoa">
             Les produits n&apos;ont pas pu être chargés.
@@ -170,8 +174,6 @@ export const ShopCatalog = () => {
             Réessayer
           </button>
         </div>
-      ) : !result ? (
-        <div className="mt-10 min-h-96" aria-hidden />
       ) : visible.length > 0 ? (
         <>
           <ul className="mt-10 grid grid-cols-2 gap-x-4 gap-y-10 md:grid-cols-3 md:gap-x-6 lg:grid-cols-4 lg:gap-y-14">

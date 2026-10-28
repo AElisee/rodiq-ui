@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
-import { adminSmallButtonClassName } from "@/components/admin/admin-ui";
+import { adminSmallButtonClassName, PendingLabel } from "@/components/admin/admin-ui";
 import { errorMessage } from "@/lib/api/client";
 import type { Order } from "@/lib/commandes";
 import { useAdminOrdersStore } from "@/lib/stores/admin-orders-store";
@@ -40,7 +40,7 @@ export const OrderActions = ({ order: o }: { order: Order }) => {
           }
           className={adminSmallButtonClassName}
         >
-          Accepter
+          <PendingLabel pending={pending}>Accepter</PendingLabel>
         </button>
       )}
       {o.status === "en_preparation" && (
@@ -56,7 +56,7 @@ export const OrderActions = ({ order: o }: { order: Order }) => {
           }
           className={adminSmallButtonClassName}
         >
-          {pickup ? "Prête au retrait" : "Expédier"}
+          <PendingLabel pending={pending}>{pickup ? "Prête au retrait" : "Expédier"}</PendingLabel>
         </button>
       )}
       {o.status === "prete" && (
@@ -72,7 +72,7 @@ export const OrderActions = ({ order: o }: { order: Order }) => {
           }
           className={adminSmallButtonClassName}
         >
-          {pickup ? "Marquer retirée" : "Marquer livrée"}
+          <PendingLabel pending={pending}>{pickup ? "Marquer retirée" : "Marquer livrée"}</PendingLabel>
         </button>
       )}
       {(o.status === "en_attente" || o.status === "en_preparation") && <CancelOrderDialog order={o} />}

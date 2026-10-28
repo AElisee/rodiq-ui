@@ -6,6 +6,7 @@ import { orderFilterLabels, type OrderStatus } from "@/lib/commandes";
 import { useMyOrders } from "@/lib/stores/order-store";
 import { cn } from "@/lib/utils";
 import { OrderCard } from "./order-card";
+import { HistorySkeleton } from "@/components/layout/site-skeleton";
 
 const filters: { value: OrderStatus | null; label: string }[] = [
   { value: null, label: "Toutes" },
@@ -21,7 +22,7 @@ export const OrderHistory = () => {
   const [status, setStatus] = useState<OrderStatus | null>(null);
 
   // Session et commandes lues depuis l'API : rien à afficher côté serveur
-  if (!loaded) return <div className="min-h-64" aria-hidden />;
+  if (!loaded) return <HistorySkeleton />;
 
   // Sans compte, pas de commande : le bandeau au-dessus invite à se connecter
   if (!signedIn) return null;

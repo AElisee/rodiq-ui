@@ -2,6 +2,8 @@
 
 import { useState, type ReactNode } from "react";
 import { usePrestationsHydrated, usePrestationsStore } from "@/lib/stores/prestations-store";
+import { CarteSkeleton } from "@/components/layout/site-skeleton";
+import { PendingLabel } from "@/components/ui/shimmer";
 
 // Affiche la carte une fois lue ; sinon dit pourquoi elle n'apparaît pas (chargement, échec, carte vide).
 // Partagé par la page /prestations et l'étape « prestations » de la réservation
@@ -12,7 +14,7 @@ export const CarteGuard = ({ children }: { children: ReactNode }) => {
   const load = usePrestationsStore((s) => s.load);
   const [retrying, setRetrying] = useState(false);
 
-  if (!loaded) return <div className="min-h-48" aria-hidden />;
+  if (!loaded) return <CarteSkeleton />;
 
   if (loadError) {
     const retry = async () => {
@@ -28,9 +30,9 @@ export const CarteGuard = ({ children }: { children: ReactNode }) => {
           type="button"
           onClick={retry}
           disabled={retrying}
-          className="rounded-full bg-blush px-6 py-2.5 font-sans text-sm text-cocoa transition-colors hover:bg-sand disabled:opacity-60"
+          className="rounded-full bg-blush px-6 py-2.5 font-sans text-sm text-cocoa transition-colors hover:bg-sand disabled:cursor-not-allowed disabled:bg-sand disabled:text-taupe"
         >
-          {retrying ? "Chargement…" : "Réessayer"}
+          <PendingLabel pending={retrying} pendingLabel="Chargement…">Réessayer</PendingLabel>
         </button>
       </div>
     );

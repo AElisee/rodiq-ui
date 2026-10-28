@@ -14,6 +14,7 @@ import {
   StatusBadge,
   adminInputClassName,
 } from "@/components/admin/admin-ui";
+import { AdminLinesSkeleton, AdminListSkeleton, AdminTableSkeleton } from "@/components/admin/admin-skeleton";
 import { AdminExportButtons } from "@/components/admin/admin-export";
 import {
   Dialog,
@@ -88,7 +89,7 @@ const AccountHistoryContent = ({ id }: { id: string }) => {
       </div>
     );
 
-  if (!detail) return <div className="mt-6 min-h-40" aria-hidden />;
+  if (!detail) return <AdminLinesSkeleton className="mt-6" />;
 
   return (
     <>
@@ -170,6 +171,7 @@ const AccountHistory = ({ account }: { account: ClientAccount }) => {
 export const UsersList = () => {
   const page = useAdminAccountsStore((s) => s.page);
   const pageError = useAdminAccountsStore((s) => s.pageError);
+  const loading = useAdminAccountsStore((s) => s.query !== s.pageQuery);
   const loadPage = useAdminAccountsStore((s) => s.loadPage);
   const fetchMatching = useAdminAccountsStore((s) => s.fetchMatching);
   const [query, setQuery] = useState("");
@@ -184,7 +186,7 @@ export const UsersList = () => {
     void loadPage(JSON.parse(filtersKey) as AccountsQuery);
   }, [filtersKey, loadPage]);
 
-  if (!page && !pageError) return <div className="min-h-96" aria-hidden />;
+  if (!page && !pageError) return <AdminListSkeleton filters={1} columns={7} />;
 
   const total = page?.total ?? 0;
   const pageCount = Math.ceil(total / ADMIN_PAGE_SIZE);
@@ -241,7 +243,9 @@ export const UsersList = () => {
         </div>
       </div>
 
-      {pageError ? (
+      {loading ? (
+        <AdminTableSkeleton columns={7} />
+      ) : pageError ? (
         <div role="alert" className="rounded-[var(--radius)] border border-sand p-6 font-sans text-sm text-cocoa">
           <p className="font-serif text-lg">Les comptes clients n&apos;ont pas pu être chargés.</p>
           <p className="mt-2 text-taupe">{pageError}</p>

@@ -3,6 +3,7 @@ import Image from "next/image";
 import { Suspense } from "react";
 import bannerImage from "@/public/images/prestation-repair.jpg";
 import { SignUpForm } from "./_components/sign-up-form";
+import { FormSkeleton } from "@/components/layout/site-skeleton";
 
 export const metadata: Metadata = {
   title: "Créer un compte",
@@ -32,7 +33,7 @@ const InscriptionPage = () => (
     <section className="w-full bg-pearl px-4 py-16 md:px-8 md:py-20 lg:py-24">
       <div className="mx-auto w-full max-w-2xl">
         {/* Le formulaire lit ?redirect= dans l'URL : rendu côté navigateur */}
-        <Suspense fallback={<div className="min-h-96" aria-hidden />}>
+        <Suspense fallback={<FormSkeleton fields={6} />}>
           <SignUpForm />
         </Suspense>
       </div>

@@ -16,6 +16,8 @@ type AdminAccountsState = {
   // Page affichée par l'écran Clientèle et la recherche qui l'a produite
   query: AccountsQuery | null;
   page: AccountsPage | null;
+  // Filtres de la page reçue : différents de `query` pendant la lecture de nouveaux filtres
+  pageQuery: AccountsQuery | null;
   pageError: string | undefined;
   loadPage: (query: AccountsQuery) => Promise<void>;
   // Fiches ouvertes (dialogue « Historique »), par identifiant ; erreur de lecture avec son statut HTTP
@@ -37,6 +39,7 @@ let pageRequest = 0;
 export const useAdminAccountsStore = create<AdminAccountsState>()((set, get) => ({
   query: null,
   page: null,
+  pageQuery: null,
   pageError: undefined,
   loadPage: async (query) => {
     const request = ++pageRequest;
@@ -50,11 +53,11 @@ export const useAdminAccountsStore = create<AdminAccountsState>()((set, get) => 
         }
         return;
       }
-      if (request === pageRequest) set({ page, pageError: undefined });
+      if (request === pageRequest) set({ page, pageQuery: query, pageError: undefined });
     } catch (error) {
       expireOn401(error);
       console.error("Lecture des comptes clients impossible", error);
-      if (request === pageRequest) set({ pageError: errorMessage(error) });
+      if (request === pageRequest) set({ pageQuery: query, pageError: errorMessage(error) });
     }
   },
 

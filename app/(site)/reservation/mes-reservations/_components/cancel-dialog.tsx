@@ -14,6 +14,7 @@ import {
 import { errorMessage } from "@/lib/api/client";
 import { formatDay, formatSlotTime, type Reservation } from "@/lib/reservations";
 import { useReservationStore } from "@/lib/stores/reservation-store";
+import { PendingLabel } from "@/components/ui/shimmer";
 
 // Confirmation d'annulation, avec un motif facultatif transmis au salon
 export const CancelDialog = ({ reservation }: { reservation: Reservation }) => {
@@ -81,9 +82,11 @@ export const CancelDialog = ({ reservation }: { reservation: Reservation }) => {
             type="button"
             onClick={confirm}
             disabled={pending}
-            className="inline-flex h-12 w-full items-center justify-center rounded-full bg-blush px-6 text-base text-cocoa transition-colors hover:bg-sand sm:w-auto"
+            className="inline-flex h-12 w-full items-center justify-center rounded-full bg-blush px-6 text-base text-cocoa transition-colors hover:bg-sand disabled:cursor-not-allowed disabled:bg-sand disabled:text-taupe sm:w-auto"
           >
-            Confirmer l&apos;annulation
+            <PendingLabel pending={pending} pendingLabel="Annulation…">
+              {"Confirmer l'annulation"}
+            </PendingLabel>
           </button>
         </div>
       </DialogContent>

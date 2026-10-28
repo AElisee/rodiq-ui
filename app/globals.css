@@ -8,11 +8,24 @@
    Ne jamais écrire de couleur hexadécimale dans un composant. */
 @theme {
   --color-pearl: #faf8f6; /* Blanc perlé : fond principal */
+  --color-linen: #f3eee8; /* Blanc lin : fond des pages admin, sous les cartes perlées */
   --color-blush: #ebc9d3; /* Rose poudré : accents doux, badges, survols */
+  --color-rosewood: #a8526d; /* Rose soutenu : liens et textes roses lisibles sur fond clair */
   --color-sand: #d5c7b8; /* Beige sable : bordures, fonds de cartes */
   --color-taupe: #a98e7a; /* Taupe : textes secondaires, icônes */
   --color-cocoa: #5a3e2e; /* Marron chocolat : titres, texte principal, boutons */
   --color-gold: #d4af37; /* Doré : couronne, filets, CTA premium (avec parcimonie) */
+
+  /* Reflet du Shimmer (components/ui/shimmer.tsx) : texte des boutons pendant une action */
+  --animate-shimmer: shimmer var(--shimmer-duration, 2s) linear infinite;
+  @keyframes shimmer {
+    from {
+      background-position: 100% center;
+    }
+    to {
+      background-position: 0% center;
+    }
+  }
 }
 
 /* Variables shadcn/ui mappées sur la charte */

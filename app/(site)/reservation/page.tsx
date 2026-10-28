@@ -36,7 +36,7 @@ const ReservationPage = () => (
           Déjà réservé ?{" "}
           <Link
             href="/reservation/mes-reservations"
-            className="text-cocoa underline underline-offset-4"
+            className="text-rosewood underline underline-offset-4"
           >
             Consulter mes réservations
           </Link>

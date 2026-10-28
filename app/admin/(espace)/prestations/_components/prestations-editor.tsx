@@ -11,7 +11,9 @@ import {
   adminInputClassName,
   adminLabelClassName,
   adminSmallOutlineButtonClassName,
+  PendingLabel,
 } from "@/components/admin/admin-ui";
+import { AdminListSkeleton } from "@/components/admin/admin-skeleton";
 import { FieldError } from "@/components/forms/form-fields";
 import {
   Dialog,
@@ -268,7 +270,7 @@ const PrestationForm = ({
               disabled={saving}
               className={`w-full sm:w-auto ${adminButtonClassName}`}
             >
-              {saving ? "Enregistrement…" : "Enregistrer"}
+              <PendingLabel pending={saving} pendingLabel="Enregistrement…">Enregistrer</PendingLabel>
             </button>
           </div>
         </form>
@@ -279,9 +281,24 @@ const PrestationForm = ({
 
 const DeletePrestation = ({ prestation }: { prestation: Prestation }) => {
   const removePrestation = usePrestationsStore((s) => s.removePrestation);
+  const [open, setOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const confirm = async () => {
+    setDeleting(true);
+    try {
+      await removePrestation(prestation.id);
+      setOpen(false);
+      toast("Prestation supprimée", { description: prestation.name });
+    } catch (error) {
+      reportFailure(`« ${prestation.name} » n'a pas été supprimée`)(error);
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   return (
-    <Dialog>
+    <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <button
           type="button"
@@ -309,21 +326,14 @@ const DeletePrestation = ({ prestation }: { prestation: Prestation }) => {
               Annuler
             </button>
           </DialogClose>
-          <DialogClose asChild>
-            <button
-              type="button"
-              onClick={() =>
-                removePrestation(prestation.id).then(
-                  () =>
-                    toast("Prestation supprimée", { description: prestation.name }),
-                  reportFailure(`« ${prestation.name} » n'a pas été supprimée`),
-                )
-              }
-              className={`w-full sm:w-auto ${adminButtonClassName}`}
-            >
-              Supprimer
-            </button>
-          </DialogClose>
+          <button
+            type="button"
+            onClick={() => void confirm()}
+            disabled={deleting}
+            className={`w-full sm:w-auto ${adminButtonClassName}`}
+          >
+            <PendingLabel pending={deleting} pendingLabel="Suppression…">Supprimer</PendingLabel>
+          </button>
         </div>
       </DialogContent>
     </Dialog>
@@ -357,7 +367,7 @@ export const PrestationsEditor = () => {
       reportFailure(`« ${prestation.name} » n'a pas été déplacée`),
     );
 
-  if (!hydrated) return <div className="min-h-96" aria-hidden />;
+  if (!hydrated) return <AdminListSkeleton filters={0} columns={4} />;
 
   const total = categories.reduce((sum, c) => sum + c.prestations.length, 0);
   // Catégorie inconnue (supprimée, hash erroné) : premier onglet

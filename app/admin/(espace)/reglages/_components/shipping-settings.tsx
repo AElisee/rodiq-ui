@@ -9,6 +9,7 @@ import {
   adminButtonClassName,
   adminInputClassName,
   adminSmallOutlineButtonClassName,
+  PendingLabel,
 } from "@/components/admin/admin-ui";
 import { FieldError } from "@/components/forms/form-fields";
 import type { ShippingRate } from "@/lib/commandes";
@@ -188,7 +189,7 @@ export const ShippingSettingsForm = () => {
           }
           className={adminButtonClassName}
         >
-          Enregistrer les tarifs
+          <PendingLabel pending={saving}>Enregistrer les tarifs</PendingLabel>
         </button>
       </div>
     </AdminPanel>
