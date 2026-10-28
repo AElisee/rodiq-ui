@@ -20,7 +20,7 @@ un store par des appels API branche les deux côtés d'un coup.
 | `admin-orders-store` (**branché sur l'API**) | `admin/commandes`   | —                                                | Commandes, fiche, pastille du menu, tableau de bord, ventes par produit |
 | `admin-accounts-store` (**branché sur l'API**) | `admin/comptes`   | —                                                | Clientèle (lecture seule)                  |
 | `settings-store` (**branché sur l'API**)  | `parametres`           | créneaux, horaires, contact, logo, frais de port | Réglages                                   |
-| `visit-store` (`rodiq-visits`)            | `stats/visits`         | compteur (une visite par session)                | tableau de bord                            |
+| `visit-store` (**branché sur l'API**)     | `visites`, `admin/visites` | signale l'arrivée (une fois par session)     | tableau de bord (lecture seule)            |
 | `cart-store`, `booking-store`             | — (reste côté navigateur) | panier, sélection en cours                    | —                                          |
 
 Les types de référence sont dans `lib/reservations.ts`, `lib/commandes.ts`, `lib/prestations.ts`,
@@ -46,6 +46,20 @@ Les types de référence sont dans `lib/reservations.ts`, `lib/commandes.ts`, `l
     nombreArticles, total }]`, du plus récent au plus ancien ; 404 si le compte n'existe pas
   - Pas de création, modification ni suppression : un compte naît de l'inscription, et réservations et commandes
     le retiennent (`RESTRICT`)
+
+### Visiteurs
+
+Implémenté dans `api-rodiq/src/visites/`, branché via `lib/api/visites.ts` et `visit-store`. Un visiteur = une
+personne distincte dans la journée, reconnue par l'API sans cookie ni IP stockée (empreinte SHA-256 du sel du
+jour, de l'IP et du User-Agent ; le sel est jeté le lendemain avec les empreintes, seul le total du jour reste).
+
+- `POST /visites` ← `track` (`VisitTracker` du layout du site, une fois par session : drapeau `sessionStorage`
+  posé après la réponse ; jamais pour `navigator.webdriver`) → 204 dans tous les cas, compté ou non. L'API ignore
+  les robots et les navigateurs qui portent le cookie admin ; 429 au-delà de 120 appels/min par IP
+- `GET /admin/visites?du=AAAA-MM-JJ&au=AAAA-MM-JJ` ← `load` (`useVisitsLoaded`, tableau de bord : les 12 derniers
+  mois) → `[{ jour, visiteurs }]`, jours sans visiteur absents ; 400 si dates invalides, inversées ou plus de
+  400 jours. Semaine et mois additionnent les jours : un visiteur revenu deux jours compte deux fois
+- Pas de modification ni de suppression : une visite comptée ne change plus
 
 ### Réservations
 
@@ -255,7 +269,7 @@ Elles sont vérifiées dans l'interface, mais le serveur doit les revérifier :
   (hachage lent côté serveur, cookie de session `httpOnly`).
 - Protection de l'admin côté navigateur (`admin-shell.tsx`) : à doubler par une vérification serveur
   (`proxy.ts` ou dans chaque route).
-- Données de démonstration (`lib/demo-data.ts`, réservations de démonstration de `reservation-store.ts`)
+- Données de démonstration (réservations de démonstration de `reservation-store.ts`)
   et migrations `version` / `migrate` des stores.
 - Logos et photos des produits ajoutés en data URL (`setLogo`, `lib/images.ts`), photos importées dans
   `lib/produits.ts` : à remplacer par un stockage de fichiers.

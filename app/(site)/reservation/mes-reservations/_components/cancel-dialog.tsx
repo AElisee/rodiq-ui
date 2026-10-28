@@ -1,5 +1,6 @@
 "use client";
 
+import { CalendarX2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import {
@@ -41,8 +42,9 @@ export const CancelDialog = ({ reservation }: { reservation: Reservation }) => {
       <DialogTrigger asChild>
         <button
           type="button"
-          className="font-sans text-sm text-cocoa underline underline-offset-4 transition-colors hover:text-taupe"
+          className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-destructive px-6 font-sans text-base text-destructive transition-colors hover:bg-destructive hover:text-pearl"
         >
+          <CalendarX2 className="size-4" aria-hidden />
           Annuler la réservation
         </button>
       </DialogTrigger>

@@ -28,7 +28,7 @@ import {
 } from "@/lib/reservations";
 import { useAdminOrdersStore, useAllOrdersLoaded } from "@/lib/stores/admin-orders-store";
 import { useAdminReservationsStore, useAllReservationsLoaded } from "@/lib/stores/admin-reservations-store";
-import { useVisitStore, useVisitsHydrated } from "@/lib/stores/visit-store";
+import { useVisitStore, useVisitsLoaded } from "@/lib/stores/visit-store";
 
 const visitorsConfig = {
   visitors: { label: "Visiteurs", color: "var(--color-cocoa)" },
@@ -71,12 +71,14 @@ const tooltip = (
 
 export const Dashboard = () => {
   const reservationsHydrated = useAllReservationsLoaded();
-  const visitsHydrated = useVisitsHydrated();
+  const visitsHydrated = useVisitsLoaded();
   const ordersHydrated = useAllOrdersLoaded();
   const reservations = useAdminReservationsStore((s) => s.all);
   const reservationsError = useAdminReservationsStore((s) => s.allError);
   const reloadReservations = useAdminReservationsStore((s) => s.loadAll);
   const visits = useVisitStore((s) => s.days);
+  const visitsError = useVisitStore((s) => s.error);
+  const reloadVisits = useVisitStore((s) => s.load);
   const orders = useAdminOrdersStore((s) => s.all);
   const ordersError = useAdminOrdersStore((s) => s.allError);
   const reloadOrders = useAdminOrdersStore((s) => s.loadAll);
@@ -111,6 +113,18 @@ export const Dashboard = () => {
         <p className="font-serif text-lg">Les commandes n&apos;ont pas pu être chargées.</p>
         <p className="mt-2 text-taupe">{ordersError}</p>
         <button type="button" onClick={() => void reloadOrders()} className="mt-4 underline underline-offset-4">
+          Réessayer
+        </button>
+      </div>
+    );
+  }
+
+  if (visitsError) {
+    return (
+      <div role="alert" className="rounded-[var(--radius)] border border-sand p-6 font-sans text-sm text-cocoa">
+        <p className="font-serif text-lg">Les visiteurs n&apos;ont pas pu être chargés.</p>
+        <p className="mt-2 text-taupe">{visitsError}</p>
+        <button type="button" onClick={() => void reloadVisits()} className="mt-4 underline underline-offset-4">
           Réessayer
         </button>
       </div>
@@ -175,7 +189,10 @@ export const Dashboard = () => {
 
       <AdminPanel>
         <AdminPanelTitle>Visiteurs</AdminPanelTitle>
-        <p className="mt-1 font-sans text-sm text-taupe">Visiteurs du site par {periodMeta.label.toLowerCase()}</p>
+        <p className="mt-1 font-sans text-sm text-taupe">
+          Visiteurs du site par {periodMeta.label.toLowerCase()}
+          {period !== "jour" && " (cumul des visiteurs de chaque jour)"}
+        </p>
         <ChartContainer config={visitorsConfig} className="mt-6 aspect-auto h-64 w-full">
           <AreaChart data={stats} margin={{ left: 0, right: 8, top: 8 }}>
             {/* Dégradé rose poudré → blanc perlé : remplissage plus léger, sans opacité */}

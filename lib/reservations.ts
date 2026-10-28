@@ -43,9 +43,9 @@ export type Reservation = {
   createdAt: string; // ISO
   // Dernier changement de statut (ISO)
   processedAt?: string;
-  // Vue de la cliente : annulation en ligne encore possible, et dernier jour (inclus) pour le faire
+  // Vue de la cliente : annulation en ligne encore possible, et instant (exclu) jusqu'auquel le faire
   canCancel?: boolean;
-  cancellationDeadline?: string; // yyyy-MM-dd
+  cancellationDeadline?: string; // ISO
   // Vue de l'admin : compte de la cliente
   accountId?: string;
 };
@@ -61,8 +61,8 @@ export type Slot = {
 
 // Règles de réservation réglées par l'admin (voir lib/stores/settings-store.ts)
 export type BookingRules = {
-  // Annulation possible jusqu'à N jours avant le jour du rendez-vous
-  cancellationNoticeDays: number;
+  // Annulation possible jusqu'à N heures avant le début du rendez-vous, null = jusqu'au début
+  cancellationNoticeHours: number | null;
   // Réservation ouverte sur les N prochains jours
   bookingWindowDays: number;
   // Délai minimum entre la réservation et le début du créneau
@@ -147,8 +147,28 @@ const slotDate = (date: string) => parse(date, "yyyy-MM-dd", new Date());
 export const formatDay = (date: string | Date) =>
   format(typeof date === "string" ? slotDate(date) : date, "EEEE d MMMM yyyy", { locale: fr });
 
-// « 3 novembre » (délai d'annulation)
-export const formatShortDay = (date: string) => format(slotDate(date), "d MMMM", { locale: fr });
+const plural = (n: number, word: string) => `${n} ${word}${n > 1 ? "s" : ""}`;
+
+// « 2 jours », « 1 jour et 6 heures », « 12 heures » (délai d'annulation)
+export const formatNotice = (hours: number) => {
+  const days = Math.floor(hours / 24);
+  const rest = hours % 24;
+  return [days && plural(days, "jour"), rest && plural(rest, "heure")].filter(Boolean).join(" et ");
+};
+
+const deadlineFormat = new Intl.DateTimeFormat("fr-FR", {
+  day: "numeric",
+  month: "long",
+  hour: "2-digit",
+  minute: "2-digit",
+  timeZone: "Africa/Abidjan",
+});
+
+// « 3 novembre à 14h00 », à l'heure du salon (limite d'annulation)
+export const formatDeadline = (iso: string) => {
+  const part = Object.fromEntries(deadlineFormat.formatToParts(new Date(iso)).map((p) => [p.type, p.value]));
+  return `${part.day} ${part.month} à ${part.hour}h${part.minute}`;
+};
 
 export const formatSlotTime = (start: string, end: string) =>
   `${start.replace(":", "h")} – ${end.replace(":", "h")}`;

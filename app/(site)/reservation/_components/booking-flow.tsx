@@ -17,7 +17,7 @@ import {
 } from "@/components/forms/form-fields";
 import { errorMessage } from "@/lib/api/client";
 import { formatPrice } from "@/lib/prestations";
-import { contactChannels, formatDay, formatSlotTime, type Reservation } from "@/lib/reservations";
+import { contactChannels, formatDay, formatNotice, formatSlotTime, type Reservation } from "@/lib/reservations";
 import { selectCurrentAccount, useAuthHydrated, useAuthStore } from "@/lib/stores/auth-store";
 import { useBookingStore } from "@/lib/stores/booking-store";
 import { useAllPrestations } from "@/lib/stores/prestations-store";
@@ -110,7 +110,7 @@ export const BookingFlow = () => {
   const slots = useSlotsStore((s) => s.slots);
   const slotsError = useSlotsStore((s) => s.loadError);
   const reloadSlots = useSlotsStore((s) => s.load);
-  const noticeDays = useSettingsStore((s) => s.rules.cancellationNoticeDays);
+  const noticeHours = useSettingsStore((s) => s.rules.cancellationNoticeHours);
   const allPrestations = useAllPrestations();
   const selectedIds = useBookingStore((s) => s.selectedIds);
   const slotId = useBookingStore((s) => s.slotId);
@@ -447,9 +447,9 @@ export const BookingFlow = () => {
               {...register("acceptPolicy")}
             />
             <span>
-              J&apos;ai bien noté que je peux annuler ma réservation en ligne jusqu&apos;à{" "}
-              {noticeDays} jours avant le rendez-vous. Passé ce délai, je
-              contacte le salon.
+              {noticeHours
+                ? `J'ai bien noté que je peux annuler ma réservation en ligne jusqu'à ${formatNotice(noticeHours)} avant le rendez-vous. Passé ce délai, je contacte le salon.`
+                : "J'ai bien noté que je peux annuler ma réservation en ligne jusqu'au début du rendez-vous."}
               <Required />
             </span>
           </label>

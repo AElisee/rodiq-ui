@@ -77,4 +77,8 @@ export const endpoints = {
     liste: "/admin/comptes",
     detail: (id: string) => `/admin/comptes/${encodeURIComponent(id)}`,
   },
+  visites: {
+    comptage: "/visites",
+    liste: "/admin/visites",
+  },
 } as const;

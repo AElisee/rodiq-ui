@@ -19,9 +19,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   daySlotTimes,
   formatDay,
+  formatNotice,
   toDateKey,
   weekdayNames,
-  type BookingRules,
   type DayHours,
 } from "@/lib/reservations";
 import { useSettingsHydrated, useSettingsStore, type GeoPoint } from "@/lib/stores/settings-store";
@@ -233,22 +233,37 @@ const OpeningHours = () => {
   );
 };
 
-const ruleFields: { key: keyof BookingRules; label: string; hint: string; min: number; max: number }[] = [
+type NumberRule = "bookingWindowDays" | "minNoticeHours";
+
+const ruleFields: { key: NumberRule; label: string; hint: string; min: number; max: number }[] = [
   { key: "bookingWindowDays", label: "Réservation ouverte sur", hint: "jours à l'avance", min: 1, max: 365 },
   { key: "minNoticeHours", label: "Délai minimum avant un créneau", hint: "heures", min: 0, max: 168 },
-  { key: "cancellationNoticeDays", label: "Annulation en ligne jusqu'à", hint: "jours avant le rendez-vous", min: 0, max: 30 },
 ];
+
+// Délai d'annulation saisi en jours + heures ; tout vide (ou 0) = annulation jusqu'au début du rendez-vous
+const MAX_CANCEL_DAYS = 30;
+const splitNotice = (hours: number | null) =>
+  hours ? { days: String(Math.floor(hours / 24) || ""), hours: String(hours % 24 || "") } : { days: "", hours: "" };
+
+const cancelNoticeError = (days: string, hours: string) => {
+  const d = Number(days || 0);
+  const h = Number(hours || 0);
+  if (!Number.isInteger(d) || d < 0 || d > MAX_CANCEL_DAYS) return `Jours : entre 0 et ${MAX_CANCEL_DAYS}`;
+  if (!Number.isInteger(h) || h < 0 || h > 23) return "Heures : entre 0 et 23";
+  if (d * 24 + h > MAX_CANCEL_DAYS * 24) return `${MAX_CANCEL_DAYS} jours au maximum`;
+  return undefined;
+};
 
 // Règles de réservation et d'annulation
 const BookingRulesForm = () => {
   const rules = useSettingsStore((s) => s.rules);
   const setRules = useSettingsStore((s) => s.setRules);
   const { saving, run } = useSave();
-  const [draft, setDraft] = useState<Record<keyof BookingRules, string>>({
+  const [draft, setDraft] = useState<Record<NumberRule, string>>({
     bookingWindowDays: String(rules.bookingWindowDays),
     minNoticeHours: String(rules.minNoticeHours),
-    cancellationNoticeDays: String(rules.cancellationNoticeDays),
   });
+  const [cancelDraft, setCancelDraft] = useState(() => splitNotice(rules.cancellationNoticeHours));
 
   const errorOf = (field: (typeof ruleFields)[number]) => {
     const value = Number(draft[field.key]);
@@ -256,8 +271,11 @@ const BookingRulesForm = () => {
       ? `Entre ${field.min} et ${field.max}`
       : undefined;
   };
-  const invalid = ruleFields.some((f) => errorOf(f));
-  const changed = ruleFields.some((f) => Number(draft[f.key]) !== rules[f.key]);
+  const cancelError = cancelNoticeError(cancelDraft.days, cancelDraft.hours);
+  const cancelHours = Number(cancelDraft.days || 0) * 24 + Number(cancelDraft.hours || 0) || null;
+  const invalid = ruleFields.some((f) => errorOf(f)) || !!cancelError;
+  const changed =
+    ruleFields.some((f) => Number(draft[f.key]) !== rules[f.key]) || cancelHours !== rules.cancellationNoticeHours;
 
   return (
     <AdminPanel className="flex flex-col gap-6">
@@ -287,6 +305,32 @@ const BookingRulesForm = () => {
             <FieldError message={errorOf(field)} />
           </div>
         ))}
+        <fieldset>
+          <legend className={adminLabelClassName}>Annulation en ligne jusqu&apos;à</legend>
+          <div className="flex flex-wrap items-center gap-3">
+            {(["days", "hours"] as const).map((unit) => (
+              <label key={unit} className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min={0}
+                  max={unit === "days" ? MAX_CANCEL_DAYS : 23}
+                  placeholder="0"
+                  value={cancelDraft[unit]}
+                  onChange={(e) => setCancelDraft((d) => ({ ...d, [unit]: e.target.value }))}
+                  aria-invalid={!!cancelError}
+                  className={`${adminInputClassName} w-20!`}
+                />
+                <span className="font-sans text-sm text-taupe">{unit === "days" ? "jours" : "heures"}</span>
+              </label>
+            ))}
+          </div>
+          <p className="mt-1.5 font-sans text-xs text-taupe">
+            {cancelHours
+              ? `Avant le début du rendez-vous (${formatNotice(cancelHours)}).`
+              : "Vide : annulation possible jusqu'au début du rendez-vous."}
+          </p>
+          <FieldError message={cancelError} />
+        </fieldset>
       </div>
       <div className="flex justify-end">
         <button
@@ -298,7 +342,7 @@ const BookingRulesForm = () => {
                 setRules({
                   bookingWindowDays: Number(draft.bookingWindowDays),
                   minNoticeHours: Number(draft.minNoticeHours),
-                  cancellationNoticeDays: Number(draft.cancellationNoticeDays),
+                  cancellationNoticeHours: cancelHours,
                 }),
               () => toast.success("Règles enregistrées"),
             )

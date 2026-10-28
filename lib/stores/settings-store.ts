@@ -70,7 +70,7 @@ const weekday = (opening: string, closing: string): DayHours => ({
 
 // Valeurs de départ : horaires affichés dans le pied de page, créneaux de 2 h, 2 places
 export const defaultSettings: Settings = {
-  rules: { cancellationNoticeDays: 2, bookingWindowDays: 30, minNoticeHours: 12 },
+  rules: { cancellationNoticeHours: 48, bookingWindowDays: 30, minNoticeHours: 12 },
   week: [
     { open: false, opening: "09:00", closing: "17:00" },
     weekday("09:00", "19:00"),

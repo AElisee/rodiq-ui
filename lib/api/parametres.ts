@@ -14,7 +14,7 @@ import { endpoints } from "./endpoints";
 // Réglages du salon. L'API parle français (`regles`, `semaine`…), le front garde ses noms : la traduction
 // dans les deux sens est faite ici seulement. Chaque écriture renvoie tous les réglages.
 
-type RulesDto = { fenetreReservationJours: number; delaiMinimumHeures: number; delaiAnnulationJours: number };
+type RulesDto = { fenetreReservationJours: number; delaiMinimumHeures: number; delaiAnnulationHeures: number | null };
 type DayDto = { ouvert: boolean; ouverture: string; fermeture: string; debutPause?: string; finPause?: string };
 type RateDto = { destination: string; frais: number };
 type ShippingDto = { domicile: RateDto[]; expedition: RateDto[] };
@@ -46,7 +46,7 @@ type SettingsDto = {
 const rulesToDto = (r: BookingRules): RulesDto => ({
   fenetreReservationJours: r.bookingWindowDays,
   delaiMinimumHeures: r.minNoticeHours,
-  delaiAnnulationJours: r.cancellationNoticeDays,
+  delaiAnnulationHeures: r.cancellationNoticeHours,
 });
 
 const dayToDto = (d: DayHours): DayDto => ({
@@ -90,7 +90,7 @@ const fromDto = (dto: SettingsDto): Settings => ({
   rules: {
     bookingWindowDays: dto.regles.fenetreReservationJours,
     minNoticeHours: dto.regles.delaiMinimumHeures,
-    cancellationNoticeDays: dto.regles.delaiAnnulationJours,
+    cancellationNoticeHours: dto.regles.delaiAnnulationHeures,
   },
   week: dto.semaine.map((d) => ({
     open: d.ouvert,

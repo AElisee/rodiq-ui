@@ -4,7 +4,7 @@ import Link from "next/link";
 import {
   contactChannels,
   formatDay,
-  formatShortDay,
+  formatDeadline,
   formatSlotTime,
   statusMeta,
   type Reservation,
@@ -68,7 +68,7 @@ export const BookingConfirmation = ({ reservation, accountCreated }: BookingConf
               <dt className="text-taupe">Annulation en ligne</dt>
               <dd className="sm:text-right">
                 {reservation.canCancel
-                  ? `jusqu'au ${formatShortDay(reservation.cancellationDeadline)} inclus`
+                  ? `jusqu'au ${formatDeadline(reservation.cancellationDeadline)}`
                   : "délai dépassé : contactez le salon"}
               </dd>
             </div>

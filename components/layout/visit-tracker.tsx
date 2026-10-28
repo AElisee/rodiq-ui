@@ -1,15 +1,14 @@
 "use client";
 
 import { useEffect } from "react";
-import { useVisitStore, useVisitsHydrated } from "@/lib/stores/visit-store";
+import { useVisitStore } from "@/lib/stores/visit-store";
 
-// Compte la visite (une fois par session) pour les statistiques de l'admin
+// Signale la visite à l'API (une fois par session) pour les statistiques de l'admin.
+// Navigateur piloté par un robot (tests, aspirateurs) : jamais compté
 export const VisitTracker = () => {
-  const hydrated = useVisitsHydrated();
-
   useEffect(() => {
-    if (hydrated) useVisitStore.getState().track();
-  }, [hydrated]);
+    if (!navigator.webdriver) void useVisitStore.getState().track();
+  }, []);
 
   return null;
 };

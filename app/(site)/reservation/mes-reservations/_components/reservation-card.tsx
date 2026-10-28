@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { formatPrice } from "@/lib/prestations";
 import {
   formatDay,
-  formatShortDay,
+  formatDeadline,
   formatSlotTime,
   hasFromPrice,
   isActive,
@@ -101,7 +101,7 @@ export const ReservationCard = ({ reservation }: { reservation: Reservation }) =
           {reservation.canCancel && reservation.cancellationDeadline ? (
             <>
               <p className="text-taupe">
-                Annulation en ligne possible jusqu&apos;au {formatShortDay(reservation.cancellationDeadline)} inclus.
+                Annulation en ligne possible jusqu&apos;au {formatDeadline(reservation.cancellationDeadline)}.
               </p>
               <CancelDialog reservation={reservation} />
             </>
