@@ -42,7 +42,7 @@ layout/page utilisent les types globaux générés (`LayoutProps<"/">`, `PagePro
   `cancellationDeadline`) et références sont calculés par l'API, jamais par le navigateur.
 - `lib/api/` : **seule couche qui parle à l'API**. `client.ts` (URL `NEXT_PUBLIC_API_URL`, cookies
   `credentials: "include"`, `ApiError`, `errorMessage` pour les toasts), `endpoints.ts` (tous les chemins),
-  un service par ressource (`auth.ts`, `parametres.ts`, `prestations.ts`, `reservations.ts`, `boutique.ts`, `commandes.ts`, `comptes.ts`, `visites.ts`) qui traduit les DTO de l'API (noms français) vers les
+  un service par ressource (`auth.ts`, `parametres.ts`, `prestations.ts`, `reservations.ts`, `boutique.ts`, `commandes.ts`, `comptes.ts`, `visites.ts`, `journal.ts`) qui traduit les DTO de l'API (noms français) vers les
   types du front. Les composants n'appellent jamais l'API : ils passent par les stores.
 - `lib/stores/` : **un store = une ressource d'API**. `auth-store`, `admin-store`, `settings-store`,
   `prestations-store`, `reservation-store` (réservations du compte connecté, `useMyReservations`), `slots-store`
@@ -51,7 +51,8 @@ layout/page utilisent les types globaux générés (`LayoutProps<"/">`, `PagePro
   fiche, le panier et la commande) et `admin-boutique-store` (catégories, liste paginée, fiches, photos,
   compteurs), `order-store` (commandes du compte connecté, `useMyOrders`), `admin-orders-store` (liste paginée,
   fiche, actions, pastille, toutes les commandes pour les indicateurs), `admin-accounts-store` (Clientèle : liste
-  paginée côté serveur, fiche « Historique », export) et `visit-store` (visiteurs uniques par jour : `track` depuis
+  paginée côté serveur, fiche « Historique », export), `admin-journal-store` (Journal : liste filtrée et paginée
+  côté serveur, export) et `visit-store` (visiteurs uniques par jour : `track` depuis
   `VisitTracker` du site, `load` pour le tableau de bord) sont alimentés par `lib/api/` (non persistés ; hook `use…Hydrated` créé par `createLoadHook` de `remote.ts`, qui
   lance le chargement) ; leurs actions sont asynchrones et lèvent une `ApiError` en cas d'échec. Le site et l'admin lisent et écrivent les
   mêmes stores (`prestations`, `settings`, `auth`, `admin`, `visit`), sauf les réservations

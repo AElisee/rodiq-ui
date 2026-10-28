@@ -81,4 +81,7 @@ export const endpoints = {
     comptage: "/visites",
     liste: "/admin/visites",
   },
+  journal: {
+    liste: "/admin/journal",
+  },
 } as const;

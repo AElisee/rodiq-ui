@@ -28,7 +28,7 @@ export const errorMessage = (error: unknown) => {
     const detail = error instanceof Error && error.message ? ` : ${error.message}` : "";
     return `Erreur inattendue dans la page${detail}`;
   }
-  if (error.status === 0) return "Serveur injoignable : votre connexion est coupée ou l'API ne répond pas";
+  if (error.status === 0) return "Serveur injoignable : vérifiez votre connexion internet ou réessayez dans quelques instants";
   if (error.status === 429) return "Trop de tentatives en peu de temps : réessayez dans une minute";
   if (error.status >= 500) {
     return `Erreur interne du serveur (${error.status}) : la demande n'a pas abouti, réessayez plus tard`;

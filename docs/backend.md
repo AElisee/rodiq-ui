@@ -21,6 +21,7 @@ un store par des appels API branche les deux côtés d'un coup.
 | `admin-accounts-store` (**branché sur l'API**) | `admin/comptes`   | —                                                | Clientèle (lecture seule)                  |
 | `settings-store` (**branché sur l'API**)  | `parametres`           | créneaux, horaires, contact, logo, frais de port | Réglages                                   |
 | `visit-store` (**branché sur l'API**)     | `visites`, `admin/visites` | signale l'arrivée (une fois par session)     | tableau de bord (lecture seule)            |
+| `admin-journal-store` (**branché sur l'API**) | `admin/journal`  | —                                                | Journal (lecture seule)                    |
 | `cart-store`, `booking-store`             | — (reste côté navigateur) | panier, sélection en cours                    | —                                          |
 
 Les types de référence sont dans `lib/reservations.ts`, `lib/commandes.ts`, `lib/prestations.ts`,
@@ -60,6 +61,19 @@ jour, de l'IP et du User-Agent ; le sel est jeté le lendemain avec les empreint
   mois) → `[{ jour, visiteurs }]`, jours sans visiteur absents ; 400 si dates invalides, inversées ou plus de
   400 jours. Semaine et mois additionnent les jours : un visiteur revenu deux jours compte deux fois
 - Pas de modification ni de suppression : une visite comptée ne change plus
+
+### Journal
+
+Implémenté dans `api-rodiq/src/journal/`, branché via `lib/api/journal.ts` et `admin-journal-store` (`loadPage` ←
+liste, `fetchMatching` ← export). L'API écrit elle-même chaque entrée : connexions réussies et refusées,
+inscriptions, déconnexions, et toute action qui modifie les données (réservations, commandes, boutique,
+prestations, réglages), avec l'auteur, l'élément touché, l'IP et le navigateur. Conservé 365 jours.
+
+- `GET /admin/journal?categorie=connexion|reservation|commande|boutique|prestation|reglage&acteur=client|admin|anonyme&resultat=succes|echec&du=&au=&q=&page=&parPage=`
+  (≤ 100) → `{ elements, total, page, parPage, parCategorie }`, du plus récent au plus ancien ; élément =
+  `{ id, le, categorie, action, libelle, resultat, acteur: { type, id, nom }, cible: { type, id, libelle } | null,
+  detail, ip, navigateur }` ; 400 si période inversée
+- Pas de création, modification ni suppression : le journal ne se réécrit pas
 
 ### Réservations
 

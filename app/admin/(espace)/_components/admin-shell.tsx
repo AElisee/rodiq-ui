@@ -12,6 +12,7 @@ import {
   LogOut,
   Package,
   PanelLeft,
+  ScrollText,
   Settings,
   ShoppingBag,
   Sparkles,
@@ -57,6 +58,7 @@ const adminNav: AdminNavLink[] = [
       { label: "Catégories", href: "/admin/boutique/categories" },
     ],
   },
+  { label: "Journal", href: "/admin/journal", icon: ScrollText },
   { label: "Réglages", href: "/admin/reglages", icon: Settings },
 ];
 

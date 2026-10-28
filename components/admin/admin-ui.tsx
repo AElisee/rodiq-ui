@@ -145,10 +145,13 @@ export const AdminPager = ({
   page,
   pageCount,
   onPageChange,
+  label,
 }: {
   page: number;
   pageCount: number;
   onPageChange: (page: number) => void;
+  // Remplace « Page x sur y » (ex. le jour affiché)
+  label?: ReactNode;
 }) =>
   pageCount > 1 ? (
     <nav aria-label="Pagination" className="mt-6 flex items-center justify-center gap-4 font-sans text-sm text-cocoa">
@@ -160,8 +163,12 @@ export const AdminPager = ({
       >
         Précédent
       </button>
-      <span>
-        Page {page} sur {pageCount}
+      <span className="text-center">
+        {label ?? (
+          <>
+            Page {page} sur {pageCount}
+          </>
+        )}
       </span>
       <button
         type="button"
