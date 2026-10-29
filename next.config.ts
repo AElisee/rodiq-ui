@@ -13,11 +13,13 @@ function racineCommune(): string {
 }
 
 const racine = racineCommune();
-// Le mutualisé limite le nombre de processus : un seul worker de build, sinon `spawn … EAGAIN`
+// Le mutualisé limite le nombre de processus et de threads : un seul worker de build (sinon `spawn … EAGAIN`) et pas
+// de vérification TypeScript, qui lance un processus de plus (elle est faite par le build local avant le push)
 const mutualise = racine !== process.cwd();
 
 const nextConfig: NextConfig = {
   outputFileTracingRoot: racine,
+  ...(mutualise && { typescript: { ignoreBuildErrors: true } }),
   /* config options here */
   experimental: {
     agentFeedback: true,
