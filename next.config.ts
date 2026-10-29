@@ -13,12 +13,15 @@ function racineCommune(): string {
 }
 
 const racine = racineCommune();
+// Le mutualisé limite le nombre de processus : un seul worker de build, sinon `spawn … EAGAIN`
+const mutualise = racine !== process.cwd();
 
 const nextConfig: NextConfig = {
   outputFileTracingRoot: racine,
   /* config options here */
   experimental: {
     agentFeedback: true,
+    ...(mutualise && { cpus: 1 }),
   },
   // Renvoie la console du navigateur (dont les traces « [api] … » de lib/api/client.ts) vers le terminal de dev
   logging: {
