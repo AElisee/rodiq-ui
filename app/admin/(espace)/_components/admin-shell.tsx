@@ -54,7 +54,7 @@ const adminNav: AdminNavLink[] = [
     href: "/admin/boutique",
     icon: ShoppingBag,
     children: [
-      { label: "Produits", href: "/admin/boutique/produits" },
+      { label: "Catalogue produits", href: "/admin/boutique/produits" },
       { label: "Catégories", href: "/admin/boutique/categories" },
     ],
   },

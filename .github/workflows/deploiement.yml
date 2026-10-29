@@ -1,0 +1,78 @@
+# Déploiement du front sur le mutualisé cPanel LWS à chaque push sur `dev`.
+# Le mutualisé ne peut pas exécuter `next build` (limite de processus) : le build se fait ici, puis le `.next`
+# est envoyé par SSH avec le code du même commit. Voir ../GUIDE-DEPLOIEMENT-CPANEL.md, étape 10.
+#
+# Secrets du dépôt (Settings → Secrets and variables → Actions) :
+#   SSH_HOST, SSH_PORT, SSH_USER, SSH_PRIVATE_KEY, SSH_KNOWN_HOSTS (sortie de `ssh-keyscan -p <port> <hôte>`)
+name: Déploiement production
+
+on:
+  push:
+    branches: [dev]
+  workflow_dispatch:
+
+# Un seul déploiement à la fois ; un push plus récent remplace celui en attente
+concurrency:
+  group: production
+  cancel-in-progress: false
+
+env:
+  NEXT_PUBLIC_API_URL: https://api.rodiq.2kpinnov.org/api
+  APP_DIR: apps/rodiq-ui
+  NODE_VENV: nodevenv/apps/rodiq-ui/24/bin/activate
+
+jobs:
+  deploiement:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Build
+        run: |
+          pnpm install --frozen-lockfile
+          echo "NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL" > .env.production
+          pnpm build
+          tar -czf rodiq-ui-next.tar.gz --exclude=.next/cache --exclude=.next/dev --exclude=.next/trace \
+            --exclude=.next/trace-build --exclude=.next/diagnostics --exclude=.next/types .next
+
+      - name: Clé SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_deploiement
+          chmod 600 ~/.ssh/id_deploiement
+          echo "${{ secrets.SSH_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          cat > ~/.ssh/config <<EOF
+          Host cpanel
+            HostName ${{ secrets.SSH_HOST }}
+            Port ${{ secrets.SSH_PORT }}
+            User ${{ secrets.SSH_USER }}
+            IdentityFile ~/.ssh/id_deploiement
+          EOF
+
+      - name: Envoi du build
+        run: scp rodiq-ui-next.tar.gz "cpanel:$APP_DIR/"
+
+      # Code et `.next` du même commit ; l'ancien `.next` n'est remplacé qu'une fois l'archive extraite
+      - name: Installation et redémarrage
+        run: |
+          ssh cpanel bash -s <<EOF
+          set -euo pipefail
+          source ~/$NODE_VENV
+          cd ~/$APP_DIR
+          git fetch origin dev
+          git reset --hard $GITHUB_SHA
+          npm install --omit=dev
+          rm -rf .next-nouveau && mkdir .next-nouveau
+          tar -xzf rodiq-ui-next.tar.gz -C .next-nouveau && rm rodiq-ui-next.tar.gz
+          rm -rf .next-ancien && { [ -d .next ] && mv .next .next-ancien || true; }
+          mv .next-nouveau/.next .next && rm -rf .next-nouveau .next-ancien
+          mkdir -p tmp && touch tmp/restart.txt
+          EOF

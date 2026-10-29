@@ -171,7 +171,7 @@ export const ProductsEditor = () => {
   };
 
   const loadExport = async () => ({
-    title: "Produits",
+    title: "Catalogue produits",
     filename: "produits",
     headers: exportHeaders,
     rows: (await fetchMatching({ categoryId, search, level, visibility, sort })).flatMap((p) =>
@@ -182,7 +182,7 @@ export const ProductsEditor = () => {
   return (
     <div className="flex flex-col gap-6">
       <AdminPageHeader
-        title="Produits"
+        title="Catalogue produits"
         description={
           summary
             ? `${summary.total} produit${summary.total > 1 ? "s" : ""} · ${summary.toRestock} à réapprovisionner · ${summary.hidden} masqué${summary.hidden > 1 ? "s" : ""}`

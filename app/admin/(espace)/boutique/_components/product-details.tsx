@@ -44,7 +44,7 @@ export const ProductReadState = ({ error, retry }: { error?: ReadError; retry: (
   if (error?.status === 404)
     return (
       <div className="flex flex-col gap-6 pt-6">
-        <AdminBackLink href="/admin/boutique/produits">Produits</AdminBackLink>
+        <AdminBackLink href="/admin/boutique/produits">Catalogue produits</AdminBackLink>
         <DetailNotFound title="Ce produit est introuvable." href="/admin/boutique/produits" label="Retour aux produits" />
       </div>
     );
@@ -52,7 +52,7 @@ export const ProductReadState = ({ error, retry }: { error?: ReadError; retry: (
   if (error)
     return (
       <div className="flex flex-col gap-6 pt-6">
-        <AdminBackLink href="/admin/boutique/produits">Produits</AdminBackLink>
+        <AdminBackLink href="/admin/boutique/produits">Catalogue produits</AdminBackLink>
         <div role="alert" className="rounded-[var(--radius)] border border-sand p-6 font-sans text-sm text-cocoa">
           <p className="font-serif text-lg">Le produit n&apos;a pas pu être chargé.</p>
           <p className="mt-2 text-taupe">{error.message}</p>

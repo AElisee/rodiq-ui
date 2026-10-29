@@ -4,7 +4,7 @@ import { AdminListSkeleton } from "@/components/admin/admin-skeleton";
 import { ProductsEditor } from "../_components/products-editor";
 
 export const metadata: Metadata = {
-  title: "Produits",
+  title: "Catalogue produits",
 };
 
 // Suspense : les filtres se lisent dans l'URL (?stock=alerte depuis le tableau de bord, ?categorie=… depuis les catégories)

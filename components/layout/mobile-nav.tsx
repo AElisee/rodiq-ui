@@ -64,7 +64,7 @@ export const MobileNav = () => {
         <Link
           href="/reservation"
           onClick={close}
-          className="mt-10 inline-flex h-14 items-center justify-center rounded-full bg-blush px-8 font-sans text-base text-cocoa transition-colors hover:bg-sand"
+          className="mt-10 inline-flex h-14 items-center justify-center whitespace-nowrap rounded-full bg-blush px-6 font-sans text-base text-cocoa transition-colors hover:bg-sand"
         >
           Prendre rendez-vous
         </Link>
@@ -102,18 +102,18 @@ export const MobileNav = () => {
                 </button>
               </>
             ) : (
-              <div className="grid grid-cols-2 gap-3">
+              <div className="flex flex-wrap gap-3">
                 <Link
                   href="/connexion"
                   onClick={close}
-                  className="inline-flex h-12 items-center justify-center rounded-full bg-blush px-4 font-sans text-base text-cocoa transition-colors hover:bg-sand"
+                  className="inline-flex h-12 flex-1 items-center justify-center whitespace-nowrap rounded-full bg-blush px-5 font-sans text-base text-cocoa transition-colors hover:bg-sand"
                 >
                   Se connecter
                 </Link>
                 <Link
                   href="/inscription"
                   onClick={close}
-                  className="inline-flex h-12 items-center justify-center rounded-full bg-blush px-4 font-sans text-base text-cocoa transition-colors hover:bg-sand"
+                  className="inline-flex h-12 flex-1 items-center justify-center whitespace-nowrap rounded-full bg-blush px-5 font-sans text-base text-cocoa transition-colors hover:bg-sand"
                 >
                   S&apos;inscrire
                 </Link>
