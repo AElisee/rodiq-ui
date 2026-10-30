@@ -4,6 +4,9 @@ import { errorMessage, isApiError } from "@/lib/api/client";
 import { type ProductsPage, type ShopQuery, boutiqueApi } from "@/lib/api/boutique";
 import type { Product, ProductCategory } from "@/lib/produits";
 import { createLoadHook } from "./remote";
+import { readSnapshot, writeSnapshot } from "./snapshot";
+
+const SNAPSHOT_KEY = "boutique-categories";
 
 // Boutique vue par le site (produits visibles seulement, stock plafonné). Source : l'API
 // (`lib/api/boutique.ts`), filtrée et paginée côté serveur. L'admin a son propre store
@@ -48,11 +51,16 @@ export const useShopStore = create<ShopState>()((set, get) => ({
   categoriesLoaded: false,
   categoriesError: undefined,
   loadCategories: async () => {
+    // Copie de la visite précédente affichée tout de suite, en attendant l'API
+    const snapshot = get().categoriesLoaded ? undefined : readSnapshot<ProductCategory[]>(SNAPSHOT_KEY);
+    if (snapshot) set({ categories: snapshot, categoriesLoaded: true });
     try {
-      set({ categories: await boutiqueApi.categories(), categoriesLoaded: true, categoriesError: undefined });
+      const categories = await boutiqueApi.categories();
+      set({ categories, categoriesLoaded: true, categoriesError: undefined });
+      writeSnapshot(SNAPSHOT_KEY, categories);
     } catch (error) {
       console.error("Lecture des catégories de la boutique impossible", error);
-      set({ categoriesLoaded: true, categoriesError: errorMessage(error) });
+      set({ categoriesLoaded: true, categoriesError: snapshot ? undefined : errorMessage(error) });
     }
   },
 

@@ -61,13 +61,6 @@ export const MobileNav = () => {
             );
           })}
         </nav>
-        <Link
-          href="/reservation"
-          onClick={close}
-          className="mt-10 inline-flex h-14 items-center justify-center whitespace-nowrap rounded-full bg-blush px-6 font-sans text-base text-cocoa transition-colors hover:bg-sand"
-        >
-          Prendre rendez-vous
-        </Link>
 
         {/* Compte : en bas du menu, une fois la session relue */}
         {hydrated && (

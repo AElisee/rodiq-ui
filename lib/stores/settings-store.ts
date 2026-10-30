@@ -5,6 +5,9 @@ import { deliveryZones, shippingDestinations, type ShippingRate } from "@/lib/co
 import type { BookingRules, ClosedDate, DayHours, Schedule } from "@/lib/reservations";
 import { useAdminStore } from "./admin-store";
 import { createLoadHook } from "./remote";
+import { readSnapshot, writeSnapshot } from "./snapshot";
+
+const SNAPSHOT_KEY = "parametres";
 
 export type SalonInfo = {
   address: string;
@@ -123,11 +126,19 @@ export const useSettingsStore = create<SettingsState>()((set, get) => {
     loaded: false,
     configured: false,
     load: async () => {
+      // Copie de la visite précédente affichée tout de suite, en attendant l'API
+      const snapshot = get().loaded ? undefined : readSnapshot<Settings>(SNAPSHOT_KEY);
+      if (snapshot) set({ ...snapshot, configured: true, loaded: true });
       try {
-        set({ ...(await parametresApi.get()), configured: true, loaded: true });
+        const settings = await parametresApi.get();
+        set({ ...settings, configured: true, loaded: true });
+        writeSnapshot(SNAPSHOT_KEY, settings);
       } catch (error) {
-        // 404 : salon pas encore configuré ; autre erreur : on garde les valeurs par défaut
-        if (!isApiError(error, 404)) console.error("Lecture des réglages impossible", error);
+        // 404 : salon pas encore configuré ; autre erreur : on garde la copie ou les valeurs par défaut
+        if (isApiError(error, 404)) {
+          set({ ...defaultSettings, configured: false });
+          writeSnapshot(SNAPSHOT_KEY, null);
+        } else console.error("Lecture des réglages impossible", error);
         set({ loaded: true });
       }
     },

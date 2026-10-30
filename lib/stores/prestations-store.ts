@@ -5,6 +5,9 @@ import { type CategoryFields, type PrestationFields, prestationsApi } from "@/li
 import type { PrestationCategory } from "@/lib/prestations";
 import { useAdminStore } from "./admin-store";
 import { createLoadHook } from "./remote";
+import { readSnapshot, writeSnapshot } from "./snapshot";
+
+const SNAPSHOT_KEY = "prestations";
 
 // Actions de l'admin : chacune enregistre côté API puis reprend la carte renvoyée.
 // En cas d'échec, l'ApiError est levée (le composant affiche le message) et l'état ne change pas.
@@ -56,11 +59,17 @@ export const usePrestationsStore = create<PrestationsState>()((set, get) => {
     loaded: false,
     loadError: undefined,
     load: async () => {
+      // Copie de la visite précédente affichée tout de suite, en attendant l'API
+      const snapshot = get().loaded ? undefined : readSnapshot<PrestationCategory[]>(SNAPSHOT_KEY);
+      if (snapshot) set({ categories: snapshot, loaded: true });
       try {
-        set({ categories: await prestationsApi.list(), loaded: true, loadError: undefined });
+        const categories = await prestationsApi.list();
+        set({ categories, loaded: true, loadError: undefined });
+        writeSnapshot(SNAPSHOT_KEY, categories);
       } catch (error) {
         console.error("Lecture de la carte des prestations impossible", error);
-        set({ loaded: true, loadError: errorMessage(error) });
+        // Copie affichée : on la garde (les prix sont repris du catalogue par l'API à la réservation)
+        set({ loaded: true, loadError: snapshot ? undefined : errorMessage(error) });
       }
     },
     savePrestationCategory: (fields, id) =>
