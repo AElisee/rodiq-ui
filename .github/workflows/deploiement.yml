@@ -3,7 +3,7 @@
 # est envoyé par SSH avec le code du même commit. Voir ../GUIDE-DEPLOIEMENT-CPANEL.md, étape 10.
 #
 # Secrets du dépôt (Settings → Secrets and variables → Actions) :
-#   SSH_HOST, SSH_PORT, SSH_USER, SSH_PRIVATE_KEY, SSH_KNOWN_HOSTS (sortie de `ssh-keyscan -p <port> <hôte>`)
+#   SSH_HOST, SSH_USER, SSH_PRIVATE_KEY, SSH_KNOWN_HOSTS (sortie de `ssh-keyscan -p <port> <hôte>`), SSH_PORT (22 par défaut)
 name: Déploiement production
 
 on:
@@ -40,6 +40,10 @@ jobs:
           pnpm install --frozen-lockfile
           echo "NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL" > .env.production
           pnpm build
+          # Un build qui appelle localhost:4000 casse la connexion et le chargement des données : on n'envoie pas
+          if grep -rq "localhost:4000" .next/static --include=*.js; then
+            echo "::error::Le build appelle http://localhost:4000 au lieu de $NEXT_PUBLIC_API_URL"; exit 1
+          fi
           tar -czf rodiq-ui-next.tar.gz --exclude=.next/cache --exclude=.next/dev --exclude=.next/trace \
             --exclude=.next/trace-build --exclude=.next/diagnostics --exclude=.next/types .next
 
@@ -52,7 +56,7 @@ jobs:
           cat > ~/.ssh/config <<EOF
           Host cpanel
             HostName ${{ secrets.SSH_HOST }}
-            Port ${{ secrets.SSH_PORT }}
+            Port ${{ secrets.SSH_PORT || '22' }}
             User ${{ secrets.SSH_USER }}
             IdentityFile ~/.ssh/id_deploiement
           EOF
@@ -64,8 +68,9 @@ jobs:
       - name: Installation et redémarrage
         run: |
           ssh cpanel bash -s <<EOF
-          set -euo pipefail
+          set -eo pipefail
           source ~/$NODE_VENV
+          set -u   # après le script d'activation de cPanel, qui lit des variables pas toujours définies
           cd ~/$APP_DIR
           git fetch origin dev
           git reset --hard $GITHUB_SHA
