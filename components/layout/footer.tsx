@@ -14,7 +14,7 @@ const linkClass =
 
 // Pied de page : marque, navigation, contact et horaires sur fond chocolat
 export const Footer = () => (
-  <footer className="w-full bg-cocoa px-4 pt-20 pb-10 font-serif text-pearl md:px-8 md:pt-24">
+  <footer className="w-full bg-cocoa px-3 pt-20 pb-10 font-serif text-pearl md:px-8 md:pt-24">
     <div className="mx-auto w-full max-w-6xl">
       <div className="grid gap-14 md:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1fr_1fr] lg:gap-10">
         <div className="max-w-xs">

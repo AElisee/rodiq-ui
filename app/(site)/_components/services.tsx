@@ -45,7 +45,7 @@ const categories: ServiceCategory[] = [
 
 // Catégories de prestations : image et texte alternés, empilés sur mobile
 export const Services = () => (
-  <section className="w-full bg-pearl px-4 py-20 md:px-8 md:py-24 lg:py-28">
+  <section className="w-full bg-pearl px-3 py-20 md:px-8 md:py-24 lg:py-28">
     <div className="mx-auto w-full max-w-6xl">
       <h2 className="text-center font-serif text-[clamp(2rem,3.6vw,3.5rem)] leading-tight font-normal text-balance text-cocoa">
         Nos prestations

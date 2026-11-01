@@ -30,7 +30,7 @@ const ReservationPage = () => (
       </h1>
     </section>
 
-    <section className="w-full bg-pearl px-4 py-16 md:px-8 md:py-20 lg:py-24">
+    <section className="w-full bg-pearl px-3 py-16 md:px-8 md:py-20 lg:py-24">
       <div className="mx-auto w-full max-w-6xl">
         <p className="text-center font-sans text-sm text-taupe">
           Déjà réservé ?{" "}

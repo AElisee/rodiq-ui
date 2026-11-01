@@ -34,7 +34,7 @@ const ProductPage = async ({ params }: PageProps<"/boutique/[id]">) => {
         </p>
       </section>
 
-      <section className="w-full bg-pearl px-4 py-12 md:px-8 md:py-16 lg:py-20">
+      <section className="w-full bg-pearl px-3 py-12 md:px-8 md:py-16 lg:py-20">
         <div className="mx-auto w-full max-w-6xl">
           {/* Nom, prix, déclinaisons et disponibilité lus depuis l'API : rendu côté navigateur */}
           <ProductDetail id={id} />

@@ -11,7 +11,7 @@ const pillars = [
 
 // Vision & mission : bandeau centré, même disposition que « Notre différence ? »
 export const VisionMission = () => (
-  <section className="flex w-full items-center justify-center bg-cocoa px-4 py-16 text-center md:px-8 md:py-20">
+  <section className="flex w-full items-center justify-center bg-cocoa px-3 py-16 text-center md:px-8 md:py-20">
     <div className="max-w-5xl">
       <h2 className="font-serif text-[clamp(2rem,3.6vw,3.5rem)] leading-tight font-normal text-pearl">
         Notre vision &amp; mission

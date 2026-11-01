@@ -32,7 +32,7 @@ export const Header = () => {
     >
       <div
         className={cn(
-          "mx-auto flex max-w-[1680px] items-center justify-between px-5 transition-[padding] duration-300 md:px-28",
+          "mx-auto flex max-w-[1680px] items-center justify-between px-3 transition-[padding] duration-300 md:px-28",
           scrolled ? "py-5 md:py-5" : "py-10 md:py-9"
         )}
       >
@@ -63,7 +63,7 @@ export const Header = () => {
           </div>
         </nav>
 
-        <div className="flex items-center gap-8 lg:hidden">
+        <div className="flex items-center gap-5 md:gap-8 lg:hidden">
           <CartLink />
           <AccountLink />
           <MobileNav />

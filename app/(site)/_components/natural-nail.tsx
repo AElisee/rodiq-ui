@@ -12,7 +12,7 @@ const commitments = [
 
 // Approche de l'ongle naturel : texte à gauche, image à droite sur ordinateur, empilés sur mobile
 export const NaturalNail = () => (
-  <section className="w-full bg-blush px-4 py-20 md:px-8 md:py-24 lg:py-28">
+  <section className="w-full bg-blush px-3 py-20 md:px-8 md:py-24 lg:py-28">
     <div className="mx-auto grid w-full max-w-6xl items-center gap-12 lg:grid-cols-2 lg:gap-20">
       <div className="max-w-md lg:justify-self-center">
         <h2 className="font-serif text-[clamp(2rem,3.6vw,3.5rem)] leading-tight font-normal text-balance text-cocoa">

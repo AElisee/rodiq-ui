@@ -28,11 +28,11 @@ export const MobileNav = () => {
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger
         aria-label="Ouvrir le menu"
-        className="flex h-10 w-10 flex-col items-center justify-center gap-2"
+        className="flex size-9 flex-col items-center justify-center gap-1.5 md:size-10 md:gap-2"
       >
-        <span className="h-px w-8 bg-current" />
-        <span className="h-px w-8 bg-current" />
-        <span className="h-px w-8 bg-current" />
+        <span className="h-px w-6 bg-current md:w-8" />
+        <span className="h-px w-6 bg-current md:w-8" />
+        <span className="h-px w-6 bg-current md:w-8" />
       </SheetTrigger>
       <SheetContent
         side="right"

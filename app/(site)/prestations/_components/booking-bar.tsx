@@ -32,7 +32,7 @@ export const BookingBar = () => {
       <div
         role="region"
         aria-label="Votre réservation"
-        className="fixed inset-x-0 bottom-0 z-10 bg-cocoa px-4 py-5 text-pearl shadow-sm md:px-8"
+        className="fixed inset-x-0 bottom-0 z-10 bg-cocoa px-3 py-5 text-pearl shadow-sm md:px-8"
       >
         <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 md:flex-row md:items-center md:justify-between md:gap-8">
           <div className="min-w-0">

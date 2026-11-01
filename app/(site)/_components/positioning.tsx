@@ -10,7 +10,7 @@ const specialties = [
 // Positionnement : 70 % / 30 % de la hauteur d'écran sur ordinateur, hauteur libre sur mobile
 export const Positioning = () => (
   <section className="flex w-full flex-col lg:h-svh lg:min-h-[640px]">
-    <div className="flex items-center justify-center bg-blush px-4 py-20 md:px-8 md:py-24 lg:h-[65%] lg:py-0">
+    <div className="flex items-center justify-center bg-blush px-3 py-20 md:px-8 md:py-24 lg:h-[65%] lg:py-0">
       <div className="w-full max-w-5xl text-center">
         <h2 className="font-serif text-[clamp(1.5rem,2.6vw,2.5rem)] leading-snug font-normal text-balance text-cocoa">
           RODIQ se positionne comme une onglerie haut de gamme spécialisée dans&nbsp;:
@@ -32,7 +32,7 @@ export const Positioning = () => (
       </div>
     </div>
 
-    <div className="flex items-center justify-center bg-cocoa px-4 py-10 text-center md:px-8 lg:h-[40%] lg:py-0">
+    <div className="flex items-center justify-center bg-cocoa px-3 py-10 text-center md:px-8 lg:h-[40%] lg:py-0">
       <div className="max-w-5xl">
         <h3 className="font-serif text-2xl md:text-[36px]   text-pearl">
           Notre différence ?

@@ -4,7 +4,7 @@ import shopImage from "@/public/images/boutique.jpg";
 
 // Invitation vers la boutique : photo des produits en plein cadre, encart centré par-dessus
 export const ShopTeaser = () => (
-  <section className="w-full bg-pearl px-4 pb-20 md:px-8 md:pb-24 lg:pb-28">
+  <section className="w-full bg-pearl px-3 pb-20 md:px-8 md:pb-24 lg:pb-28">
     <div className="relative mx-auto flex h-[min(80svh,760px)] min-h-[460px] w-full max-w-7xl items-center justify-center overflow-hidden rounded-[var(--radius)] bg-sand">
       <Image
         src={shopImage}

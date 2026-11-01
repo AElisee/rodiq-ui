@@ -15,8 +15,8 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { selectCurrentAccount, useAuthHydrated, useAuthStore } from "@/lib/stores/auth-store";
 
 const iconClassName = "flex items-center gap-2 text-base font-semibold transition-opacity hover:opacity-75";
-const avatarClassName = "size-9 after:border-transparent";
-const fallbackClassName = "bg-sand font-sans text-sm font-semibold text-cocoa";
+const avatarClassName = "size-8 after:border-transparent md:size-9";
+const fallbackClassName = "bg-sand font-sans text-xs font-semibold text-cocoa md:text-sm";
 const itemClassName = "cursor-pointer gap-3 px-3 py-2.5 text-base text-cocoa focus:bg-sand";
 
 // Déconnexion avec confirmation (menu du compte et menu mobile)
@@ -39,7 +39,7 @@ export const AccountLink = () => {
       <Link href="/connexion" aria-label="Se connecter" className={iconClassName}>
         <Avatar className={avatarClassName}>
           <AvatarFallback className={fallbackClassName}>
-            <UserRound className="size-5" strokeWidth={1.5} />
+            <UserRound className="size-4 md:size-5" strokeWidth={1.5} />
           </AvatarFallback>
         </Avatar>
       </Link>

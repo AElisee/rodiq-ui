@@ -16,9 +16,9 @@ export const CartLink = () => {
     <Link
       href="/panier"
       aria-label={`Panier, ${count} article${count > 1 ? "s" : ""}`}
-      className="flex items-center gap-1.5 text-base font-semibold transition-opacity hover:opacity-75"
+      className="flex items-center gap-1 text-sm font-semibold transition-opacity hover:opacity-75 md:gap-1.5 md:text-base"
     >
-      <ShoppingCart className="size-6" strokeWidth={1.5} />
+      <ShoppingCart className="size-5 md:size-6" strokeWidth={1.5} />
       <span>{count}</span>
     </Link>
   );

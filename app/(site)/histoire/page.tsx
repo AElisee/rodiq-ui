@@ -31,7 +31,7 @@ const HistoirePage = () => (
     </section>
 
     {/* Récit */}
-    <section className="w-full bg-pearl px-4 py-20 md:px-8 md:py-24 lg:py-28">
+    <section className="w-full bg-pearl px-3 py-20 md:px-8 md:py-24 lg:py-28">
       <div className="mx-auto flex max-w-2xl flex-col gap-8 font-serif text-[clamp(1rem,1.3vw,1.25rem)] leading-relaxed text-cocoa">
         <p>
           RODIQ est née d&apos;une conviction : la beauté n&apos;est pas seulement ce que

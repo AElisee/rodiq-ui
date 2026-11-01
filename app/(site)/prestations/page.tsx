@@ -30,7 +30,7 @@ const PrestationsPage = () => (
       </h1>
     </section>
 
-    <section className="w-full bg-pearl px-4 py-16 md:px-8 md:py-20 lg:py-24">
+    <section className="w-full bg-pearl px-3 py-16 md:px-8 md:py-20 lg:py-24">
       <div className="mx-auto w-full max-w-4xl">
         <p className="mx-auto max-w-xl text-center font-serif text-[clamp(1rem,1.3vw,1.25rem)] leading-relaxed text-cocoa">
           Choisissez une ou plusieurs prestations, puis continuez vers la réservation pour
