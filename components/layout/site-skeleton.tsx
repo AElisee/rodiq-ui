@@ -1,10 +1,17 @@
 import { Skeleton } from "@/components/ui/skeleton";
+import { SlowLoadingNote } from "@/components/ui/slow-loading-note";
 import { cn } from "@/lib/utils";
 
 // Squelettes du site public : la forme de la page s'affiche pendant la lecture des données
 
-// Annonce le chargement aux lecteurs d'écran
-const Loading = ({ label }: { label: string }) => <span className="sr-only">{label}</span>;
+// Annonce le chargement aux lecteurs d'écran ; un message visible apparaît si le chargement s'éternise
+// (sauf dans les petits squelettes en ligne, que le message déformerait)
+const Loading = ({ label, note = true }: { label: string; note?: boolean }) => (
+  <>
+    <span className="sr-only">{label}</span>
+    {note && <SlowLoadingNote />}
+  </>
+);
 
 const range = (length: number) => Array.from({ length }, (_, index) => index);
 
@@ -167,7 +174,7 @@ export const FormSkeleton = ({ fields = 2 }: { fields?: number }) => (
 // Ligne de texte centrée (rappel de session…)
 export const LineSkeleton = ({ className }: { className?: string }) => (
   <div role="status" className={cn("flex justify-center", className)}>
-    <Loading label="Chargement…" />
+    <Loading label="Chargement…" note={false} />
     <Skeleton className="h-4 w-72 max-w-full rounded-full" aria-hidden />
   </div>
 );

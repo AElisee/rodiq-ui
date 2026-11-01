@@ -1,10 +1,17 @@
 import { Skeleton } from "@/components/ui/skeleton";
+import { SlowLoadingNote } from "@/components/ui/slow-loading-note";
 import { cn } from "@/lib/utils";
 
 // Squelettes de l'admin : la forme de l'écran s'affiche pendant la lecture des données
 
-// Annonce le chargement aux lecteurs d'écran
-const Loading = ({ label }: { label: string }) => <span className="sr-only">{label}</span>;
+// Annonce le chargement aux lecteurs d'écran ; un message visible apparaît si le chargement s'éternise
+// (sauf dans les petits squelettes en ligne, que le message déformerait)
+const Loading = ({ label, note = true }: { label: string; note?: boolean }) => (
+  <>
+    <span className="sr-only">{label}</span>
+    {note && <SlowLoadingNote />}
+  </>
+);
 
 // En-tête de page (titre et description)
 const HeaderSkeleton = () => (
@@ -119,7 +126,7 @@ export const AdminStatsSkeleton = ({
 // Liste simple (historique d'un compte…) : lignes séparées par un filet
 export const AdminLinesSkeleton = ({ lines = 3, className }: { lines?: number; className?: string }) => (
   <div role="status" className={cn("flex flex-col divide-y divide-sand border-t border-sand", className)}>
-    <Loading label="Chargement…" />
+    <Loading label="Chargement…" note={false} />
     {Array.from({ length: lines }, (_, index) => (
       <div key={index} className="flex items-center justify-between gap-4 py-3">
         <div className="flex flex-1 flex-col gap-2">

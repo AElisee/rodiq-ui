@@ -89,5 +89,9 @@ layout/page utilisent les types globaux générés (`LayoutProps<"/">`, `PagePro
   (`components/admin/admin-skeleton.tsx` pour l'admin, `components/layout/site-skeleton.tsx` pour le site ;
   listes paginées : `query !== pageQuery` du store au changement de filtres ou de page), et `PendingLabel`
   (Shimmer, `components/ui/shimmer.tsx`) sur le libellé d'un bouton tant que l'API n'a pas répondu à l'action.
+  Les squelettes affichent `SlowLoadingNote` au-delà de 4 s. `apiRequest` coupe une lecture (GET) après 15 s
+  et la relance deux fois (réseau coupé, délai dépassé, 502/503/504) ; une écriture n'est jamais relancée.
+- Navigation : barre de chargement globale (`components/layout/navigation-progress.tsx`) au clic sur un lien
+  interne ; pour naviguer depuis le code, utiliser `useProgressRouter` (`lib/use-progress-router.ts`), pas `useRouter`.
 - Libellés neutres (« Clientèle », « Client(e) », pas « cliente » seul) ; pas de mention « (facultatif) »
   sur les champs optionnels, seuls les obligatoires sont marqués avec `<Required />`.
