@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { archivo, geistMono, playfair } from "@/lib/fonts";
+import { NavigationProgress } from "@/components/layout/navigation-progress";
 import { NumberWheelGuard } from "@/components/layout/number-wheel-guard";
 import "./globals.css";
 
@@ -19,6 +20,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${playfair.variable} ${archivo.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
+        <NavigationProgress />
         <NumberWheelGuard />
         {children}
       </body>

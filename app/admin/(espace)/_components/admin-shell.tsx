@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import {
   CalendarCheck,
   ChevronRight,
@@ -29,6 +29,7 @@ import { useAdminHydrated, useAdminStore } from "@/lib/stores/admin-store";
 import { useAdminOrdersStore, usePendingOrdersCount } from "@/lib/stores/admin-orders-store";
 import { useAdminReservationsStore, usePendingReservationsCount } from "@/lib/stores/admin-reservations-store";
 import { cn } from "@/lib/utils";
+import { useProgressRouter } from "@/lib/use-progress-router";
 
 type AdminSubLink = { label: string; href: string };
 
@@ -300,7 +301,7 @@ const AdminBreadcrumb = () => {
 
 // Cadre de l'espace admin : menu latéral repliable (tiroir sur mobile), barre du haut et redirection si non connecté
 export const AdminShell = ({ children }: { children: ReactNode }) => {
-  const router = useRouter();
+  const router = useProgressRouter();
   const pathname = usePathname();
   const hydrated = useAdminHydrated();
   const email = useAdminStore((s) => s.email);

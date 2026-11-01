@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { formatPrice } from "@/lib/prestations";
 import {
@@ -17,9 +16,10 @@ import { useBookingStore } from "@/lib/stores/booking-store";
 import { useAllPrestations, usePrestationsStore } from "@/lib/stores/prestations-store";
 import { cn } from "@/lib/utils";
 import { CancelDialog } from "./cancel-dialog";
+import { useProgressRouter } from "@/lib/use-progress-router";
 
 export const ReservationCard = ({ reservation }: { reservation: Reservation }) => {
-  const router = useRouter();
+  const router = useProgressRouter();
   const toggle = useBookingStore((s) => s.toggle);
   const clear = useBookingStore((s) => s.clear);
   const allPrestations = useAllPrestations();

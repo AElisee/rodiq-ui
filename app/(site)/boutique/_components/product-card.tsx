@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { Check, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -15,6 +14,7 @@ import {
 } from "@/lib/produits";
 import { formatPrice } from "@/lib/prestations";
 import { selectCartQuantity, useCartStore } from "@/lib/stores/cart-store";
+import { useProgressRouter } from "@/lib/use-progress-router";
 
 type ProductCardProps = {
   // Produit lu depuis l'API (stock = quantité qu'on peut mettre au panier)
@@ -24,7 +24,7 @@ type ProductCardProps = {
 };
 
 export const ProductCard = ({ product, headingAs: Heading = "h2" }: ProductCardProps) => {
-  const router = useRouter();
+  const router = useProgressRouter();
   const add = useCartStore((s) => s.add);
   const inCart = useCartStore(selectCartQuantity(product.id));
   const stock = productStock(product);

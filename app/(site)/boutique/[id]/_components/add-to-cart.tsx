@@ -1,11 +1,11 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { Check, Minus, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import type { Product, ProductVariant } from "@/lib/produits";
 import { selectCartQuantity, useCartStore } from "@/lib/stores/cart-store";
+import { useProgressRouter } from "@/lib/use-progress-router";
 
 type AddToCartProps = {
   product: Product;
@@ -16,7 +16,7 @@ type AddToCartProps = {
 
 // Choix de la quantité et ajout au panier depuis la fiche produit, dans la limite du stock
 export const AddToCart = ({ product, variant, stock }: AddToCartProps) => {
-  const router = useRouter();
+  const router = useProgressRouter();
   const add = useCartStore((s) => s.add);
   const inCart = useCartStore(selectCartQuantity(product.id, variant?.id));
   const [quantity, setQuantity] = useState(1);

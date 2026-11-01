@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
@@ -11,6 +11,7 @@ import { adminButtonClassName, adminInputClassName, adminLabelClassName, Pending
 import { errorMessage } from "@/lib/api/client";
 import { useAdminHydrated, useAdminStore } from "@/lib/stores/admin-store";
 import { safeRedirect } from "@/lib/validation";
+import { useProgressRouter } from "@/lib/use-progress-router";
 
 const loginSchema = z.object({
   email: z.email("Adresse e-mail invalide"),
@@ -20,7 +21,7 @@ const loginSchema = z.object({
 type LoginValues = z.infer<typeof loginSchema>;
 
 export const AdminLoginForm = () => {
-  const router = useRouter();
+  const router = useProgressRouter();
   const redirectParam = safeRedirect(useSearchParams().get("redirect"), "/admin");
   // Seules les pages de l'admin sont des destinations valides
   const redirect = redirectParam.startsWith("/admin") ? redirectParam : "/admin";

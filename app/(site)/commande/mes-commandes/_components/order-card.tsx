@@ -2,7 +2,6 @@
 
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
-import { useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 import { toast } from "sonner";
 import {
@@ -22,6 +21,7 @@ import { useShopProductsById } from "@/lib/stores/shop-store";
 import { useSettingsStore } from "@/lib/stores/settings-store";
 import { cn } from "@/lib/utils";
 import { CancelOrderDialog } from "./cancel-order-dialog";
+import { useProgressRouter } from "@/lib/use-progress-router";
 
 const Row = ({ label, children }: { label: string; children: ReactNode }) => (
   <div className="flex flex-col gap-1 sm:flex-row sm:justify-between sm:gap-4">
@@ -31,7 +31,7 @@ const Row = ({ label, children }: { label: string; children: ReactNode }) => (
 );
 
 export const OrderCard = ({ order }: { order: Order }) => {
-  const router = useRouter();
+  const router = useProgressRouter();
   const addToCart = useCartStore((s) => s.add);
   const salonAddress = useSettingsStore((s) => s.salon.address);
 

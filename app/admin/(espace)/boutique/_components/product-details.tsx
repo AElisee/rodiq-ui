@@ -4,7 +4,6 @@ import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { ExternalLink, ImagePlus, Pencil, Star, Trash2 } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { AdminBackLink, DetailNotFound, DetailPanel, DetailRow, detailLinkClassName } from "@/components/admin/admin-detail";
@@ -21,6 +20,7 @@ import { useAdminOrdersStore, useAllOrdersLoaded } from "@/lib/stores/admin-orde
 import { cn } from "@/lib/utils";
 import { DeleteProduct, iconButtonClassName } from "./product-actions";
 import { photoErrorMessage, useSoldCounts } from "./product-form";
+import { useProgressRouter } from "@/lib/use-progress-router";
 
 const RECENT_ORDERS = 5;
 
@@ -218,7 +218,7 @@ const ProductPhotos = ({ product }: { product: AdminProduct }) => {
 
 // Fiche d'un produit : photos, informations, déclinaisons, stock, ventes et dernières commandes
 export const ProductDetails = ({ id }: { id: string }) => {
-  const router = useRouter();
+  const router = useProgressRouter();
   const ordersHydrated = useAllOrdersLoaded();
   const { product, error, retry } = useAdminProduct(id);
   const categories = useAdminCategories();

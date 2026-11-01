@@ -2,7 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
@@ -28,6 +28,7 @@ import {
 } from "@/lib/validation";
 import { FormSkeleton } from "@/components/layout/site-skeleton";
 import { PendingLabel } from "@/components/ui/shimmer";
+import { useProgressRouter } from "@/lib/use-progress-router";
 
 const signUpSchema = z
   .object({
@@ -47,7 +48,7 @@ const signUpSchema = z
 type SignUpValues = z.infer<typeof signUpSchema>;
 
 export const SignUpForm = () => {
-  const router = useRouter();
+  const router = useProgressRouter();
   const redirect = safeRedirect(useSearchParams().get("redirect"), "/reservation/mes-reservations");
   const hydrated = useAuthHydrated();
   const account = useAuthStore(selectCurrentAccount);

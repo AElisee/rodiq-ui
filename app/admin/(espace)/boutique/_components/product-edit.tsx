@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { AdminBackLink, DetailPanel } from "@/components/admin/admin-detail";
 import { AdminPageHeader } from "@/components/admin/admin-ui";
@@ -8,10 +7,11 @@ import { useAllOrdersLoaded } from "@/lib/stores/admin-orders-store";
 import { DeleteProduct } from "./product-actions";
 import { ProductReadState, useAdminProduct } from "./product-details";
 import { ProductFormFields, useSoldCounts } from "./product-form";
+import { useProgressRouter } from "@/lib/use-progress-router";
 
 // Modification d'un produit : formulaire complet, retour à la fiche une fois enregistré
 export const ProductEdit = ({ id }: { id: string }) => {
-  const router = useRouter();
+  const router = useProgressRouter();
   const ordersHydrated = useAllOrdersLoaded();
   const { product, error, retry } = useAdminProduct(id);
   const sold = useSoldCounts();
